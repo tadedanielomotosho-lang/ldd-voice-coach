@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { transcribeAudio, countWords } from '@/lib/ai/whisper'
 import { analysePresentation } from '@/lib/ai/analyser'
 import { calculateScores } from '@/lib/ai/scorer'
+import { downloadSessionAudio } from '@/lib/analysis/downloadAudio'
 
 export type CachedAudio = {
   buffer:   Buffer
@@ -96,7 +97,10 @@ export async function processSessionAnalysis(
   if (sessionErr || !session) throw new Error('Session not found')
   if (!session.audio_storage_path) throw new Error('No audio file for session')
 
-  if (session.status === 'processing' && !cachedAudio) return
+  if (session.status === 'processing' && !cachedAudio) {
+    // Another request is already analysing with the uploaded audio
+    return
+  }
 
   const { data: existing } = await service
     .from('analyses')
@@ -141,19 +145,11 @@ export async function processSessionAnalysis(
     if (cachedAudio) {
       audio = cachedAudio
     } else {
-      const { data: fileData, error: downloadErr } = await service.storage
-        .from('audio')
-        .download(session.audio_storage_path)
-
-      if (downloadErr || !fileData) {
-        throw new Error(`Failed to download audio: ${downloadErr?.message}`)
-      }
-
-      audio = {
-        buffer:   Buffer.from(await fileData.arrayBuffer()),
-        mimeType: session.audio_mime_type || 'audio/webm',
-        filename: session.audio_storage_path.split('/').pop() || 'audio.webm',
-      }
+      audio = await downloadSessionAudio(
+        service,
+        session.audio_storage_path,
+        session.audio_mime_type
+      )
     }
 
     await runAnalysis(service, sessionId, session, audio, job?.id)

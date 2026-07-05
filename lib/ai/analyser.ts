@@ -2,7 +2,11 @@ import OpenAI from 'openai'
 import { LDDFrameworkSchema, type LDDFrameworkResult } from './types'
 import { buildAnalysisPrompt } from './prompt'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const openai = new OpenAI({
+  apiKey:     process.env.OPENAI_API_KEY,
+  timeout:    90_000,
+  maxRetries: 2,
+})
 
 export async function analysePresentation(
   transcript: string,
@@ -12,8 +16,8 @@ export async function analysePresentation(
 
   const response = await openai.chat.completions.create({
     model:           'gpt-4o-mini',
-    temperature:     0.2,
-    max_tokens:      3500,
+    temperature:     0.1,
+    max_tokens:      1400,
     response_format: { type: 'json_object' },
     messages: [
       {

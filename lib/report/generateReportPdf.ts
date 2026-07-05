@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf'
+import { getLddCoachFeedback } from '@/lib/report/coachFeedback'
 import type { Analysis, CoachingItem, FeedbackItem, LDDFrameworkResult } from '@/types'
 import { CONTENT_DIMENSIONS, DELIVERY_DIMENSIONS } from '@/types'
 
@@ -11,6 +12,7 @@ export type ReportPdfData = {
   overall: number
   content: number
   delivery: number
+  coachFeedback: string[]
   strengths: FeedbackItem[]
   areas: FeedbackItem[]
   coaching: CoachingItem[]
@@ -118,6 +120,13 @@ export function buildReportPdfBytes(data: ReportPdfData): Uint8Array {
   doc.text(`${data.wordCount}`, margin + 129, y + 11)
   y += 20
 
+  if (data.coachFeedback.length && section('LDD Coach feedback (summary)')) {
+    for (const point of data.coachFeedback) {
+      if (!writeLines(`- ${truncate(point, 200)}`, 8, 2)) break
+      y += 0.5
+    }
+  }
+
   if (section('Score breakdown')) {
     const chunks: string[] = []
     for (const dim of [...CONTENT_DIMENSIONS, ...DELIVERY_DIMENSIONS]) {
@@ -127,14 +136,14 @@ export function buildReportPdfBytes(data: ReportPdfData): Uint8Array {
     writeLines(chunks.join('  |  '), 7.5)
   }
 
-  if (data.strengths.length && section('Strengths')) {
+  if (data.strengths.length && section('Strengths (full detail)')) {
     for (const item of data.strengths.slice(0, 4)) {
       if (!writeLines(`${item.title}: ${truncate(item.detail, 160)}`, 8, 2)) break
       y += 1
     }
   }
 
-  if (data.areas.length && section('Areas for improvement')) {
+  if (data.areas.length && section('Areas for improvement (full detail)')) {
     for (const item of data.areas.slice(0, 4)) {
       if (!writeLines(`${item.title}: ${truncate(item.detail, 160)}`, 8, 2)) break
       y += 1

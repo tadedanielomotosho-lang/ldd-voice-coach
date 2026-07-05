@@ -2,21 +2,14 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Lightbulb } from 'lucide-react'
+import { ArrowLeft, Loader2, AlertTriangle, MessageSquare } from 'lucide-react'
 import DownloadReportPdfButton from '@/components/DownloadReportPdfButton'
 import DeleteSessionButton from '@/components/DeleteSessionButton'
+import RetryAnalysisButton from '@/components/RetryAnalysisButton'
 import { useRealtimeSession } from '@/lib/hooks/useRealtimeSession'
-import { formatDate, formatDuration, scoreColor, scoreToPercent, getJoinedStudent } from '@/lib/utils'
-import { CONTENT_DIMENSIONS, DELIVERY_DIMENSIONS } from '@/types'
-import type { Analysis, CoachingItem, FeedbackItem, LDDFrameworkResult, ScoreDimension } from '@/types'
-
-function getReportSummary(analysis: Analysis) {
-  const raw = analysis.raw_ai_response as Partial<LDDFrameworkResult> | null
-  return {
-    strengths: analysis.strengths ?? raw?.strengths ?? [],
-    areas:     analysis.areas_for_improvement ?? raw?.areas_for_improvement ?? [],
-  }
-}
+import { getLddCoachFeedback } from '@/lib/report/coachFeedback'
+import { formatDate, formatDuration, getJoinedStudent, formatProcessError } from '@/lib/utils'
+import type { Analysis } from '@/types'
 
 export default function ReportPage() {
   const params   = useParams()
@@ -61,25 +54,28 @@ export default function ReportPage() {
     return () => clearInterval(interval)
   }, [id, analysis, realtimeStatus])
 
-  // Retry failed sessions
+  // Fallback if analysis was not started (e.g. closed tab before process began)
   useEffect(() => {
-    if (!id || analysis) return
-    if (realtimeStatus !== 'error') return
-    processStarted.current = false
-  }, [id, analysis, realtimeStatus])
+    if (!id || analysis || !realtimeStatus || realtimeStatus !== 'pending') return
 
-  useEffect(() => {
-    if (!id || analysis || processStarted.current) return
-    if (realtimeStatus !== 'error') return
+    const timer = setTimeout(() => {
+      if (processStarted.current || analysis) return
+      processStarted.current = true
+      fetch(`/api/sessions/${id}/process`, { method: 'POST', credentials: 'same-origin' })
+        .then(async res => {
+          const data = await res.json()
+          if (!res.ok) {
+            setProcessError(formatProcessError(data.error || 'Analysis failed'))
+            setLoading(false)
+          }
+        })
+        .catch(() => {
+          setProcessError('Could not reach the server. Check your connection and try again.')
+          setLoading(false)
+        })
+    }, 12000)
 
-    processStarted.current = true
-    fetch(`/api/sessions/${id}/process`, { method: 'POST' })
-      .then(async res => {
-        const data = await res.json()
-        if (!res.ok) setProcessError(data.error || 'Analysis failed')
-        else fetchReport()
-      })
-      .catch(() => setProcessError('Could not retry analysis.'))
+    return () => clearTimeout(timer)
   }, [id, analysis, realtimeStatus])
 
   if (loading || !analysis) {
@@ -89,27 +85,27 @@ export default function ReportPage() {
           <AlertTriangle className="w-10 h-10 text-red-600 mx-auto" />
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Analysis failed</h2>
           <p className="text-red-600 dark:text-red-400 text-sm">{processError || error || 'Something went wrong.'}</p>
-          <div className="flex gap-3 justify-center pt-2">
-            <Link href="/upload" className="text-sm text-brand-600 font-medium px-4 py-2">Try again</Link>
+          <div className="flex gap-3 justify-center pt-2 flex-wrap">
+            <RetryAnalysisButton sessionId={id} />
+            <Link href="/upload" className="text-sm text-brand-600 font-medium px-4 py-2">New recording</Link>
             <Link href="/reports" className="text-sm text-gray-600 font-medium px-4 py-2">Back to reports</Link>
           </div>
         </div>
       )
     }
     return (
-      <div className="flex flex-col items-center justify-center min-h-96 gap-4">
+      <div className="flex flex-col items-center justify-center min-h-96 gap-4 px-4 text-center">
         <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
-        <p className="text-gray-500 dark:text-gray-400 text-sm">Loading your report…</p>
+        <p className="text-gray-700 dark:text-gray-300 font-medium">Analysing your recording…</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm max-w-sm">
+          Short clips (under 30 seconds) usually finish in 10–20 seconds. Longer recordings may take 1–2 minutes.
+        </p>
       </div>
     )
   }
 
-  const overall  = Math.round(Number(analysis.overall_score))
-  const content  = Math.round(Number(analysis.content_score))
-  const delivery = Math.round(Number(analysis.delivery_score))
-  const student  = getJoinedStudent(session?.students)
-  const { strengths, areas } = getReportSummary(analysis)
-  const coaching = analysis.transcript_coaching ?? []
+  const student       = getJoinedStudent(session?.students)
+  const coachFeedback = getLddCoachFeedback(analysis)
 
   return (
     <div className="max-w-4xl space-y-8">
@@ -152,134 +148,26 @@ export default function ReportPage() {
         </div>
       )}
 
-      {/* Strengths & areas for improvement */}
-      {(strengths.length > 0 || areas.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {strengths.length > 0 && (
-            <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                <h2 className="font-semibold text-emerald-900 dark:text-emerald-100">Strengths</h2>
-                <span className="text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900 px-2 py-0.5 rounded-full">
-                  {strengths.length} items
-                </span>
-              </div>
-              <ul className="space-y-4">
-                {strengths.map((item: FeedbackItem, i: number) => (
-                  <li key={i} className="text-sm">
-                    <p className="font-semibold text-emerald-900 dark:text-emerald-100">{item.title}</p>
-                    <p className="text-emerald-800/90 dark:text-emerald-200/90 mt-1 leading-relaxed">{item.detail}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {areas.length > 0 && (
-            <div className="bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                <h2 className="font-semibold text-amber-900 dark:text-amber-100">Areas for improvement</h2>
-                <span className="text-xs text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900 px-2 py-0.5 rounded-full">
-                  {areas.length} items
-                </span>
-              </div>
-              <ul className="space-y-4">
-                {areas.map((item: FeedbackItem, i: number) => (
-                  <li key={i} className="text-sm">
-                    <p className="font-semibold text-amber-900 dark:text-amber-100">{item.title}</p>
-                    <p className="text-amber-800/90 dark:text-amber-200/90 mt-1 leading-relaxed">{item.detail}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Quick suggestions list */}
-      {coaching.length > 0 && (
-        <div className="bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800 p-5">
+      {/* LDD Coach feedback — short actionable summary for participants */}
+      {coachFeedback.length > 0 && (
+        <div className="bg-brand-50 dark:bg-brand-950/30 rounded-xl border border-brand-200 dark:border-brand-800 p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Lightbulb className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            <h2 className="font-semibold text-blue-900 dark:text-blue-100">Suggestions</h2>
-            <span className="text-xs text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded-full">
-              {coaching.length} items
-            </span>
+            <MessageSquare className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">LDD Coach feedback</h2>
           </div>
           <ul className="space-y-3">
-            {coaching.map((item: CoachingItem, i: number) => (
-              <li key={i} className="text-sm text-blue-900 dark:text-blue-100 leading-relaxed">
-                <span className="text-blue-700/80 dark:text-blue-300/80">&ldquo;{item.what_you_said}&rdquo;</span>
-                <span className="mx-2 text-blue-400">→</span>
-                <span className="font-medium">&ldquo;{item.suggested_version}&rdquo;</span>
+            {coachFeedback.map((point, i) => (
+              <li key={i} className="flex gap-3 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                <span className="text-brand-600 dark:text-brand-400 font-bold shrink-0">{i + 1}.</span>
+                <span>{point}</span>
               </li>
             ))}
           </ul>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-4 pt-4 border-t border-brand-200 dark:border-brand-800">
+            Download the PDF for full strengths, detailed coaching, scores, and structure breakdown.
+          </p>
         </div>
       )}
-
-      {/* Detailed coaching opportunities */}
-      {coaching.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-            Coaching opportunities
-            <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
-              {coaching.length} rewrites
-            </span>
-          </h2>
-          <div className="space-y-4">
-            {coaching.map((item: CoachingItem, i: number) => (
-              <div key={i} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-                <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
-                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                    Coaching opportunity {i + 1}
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-800">
-                  <div className="p-4 bg-red-50/50 dark:bg-red-950/20">
-                    <p className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide mb-2">What you said</p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">&ldquo;{item.what_you_said}&rdquo;</p>
-                  </div>
-                  <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20">
-                    <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-2">Suggested version</p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">&ldquo;{item.suggested_version}&rdquo;</p>
-                  </div>
-                </div>
-                <div className="px-4 py-3 bg-blue-50 dark:bg-blue-950/50 border-t border-gray-200 dark:border-gray-800">
-                  <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">Why this is better</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{item.why_better}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Presentation structure */}
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-          Presentation structure analysis
-          <span className="text-sm font-normal text-gray-500 ml-2">({content}/100)</span>
-        </h2>
-        <div className="grid grid-cols-1 gap-3">
-          {CONTENT_DIMENSIONS.map(dim => (
-            <DimensionCard key={dim.key} dim={dim} analysis={analysis} />
-          ))}
-        </div>
-      </div>
-
-      {/* Delivery framework */}
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-          Delivery analysis
-          <span className="text-sm font-normal text-gray-500 ml-2">({delivery}/100)</span>
-        </h2>
-        <div className="grid grid-cols-1 gap-3">
-          {DELIVERY_DIMENSIONS.map(dim => (
-            <DimensionCard key={dim.key} dim={dim} analysis={analysis} />
-          ))}
-        </div>
-      </div>
 
       {/* Full transcript */}
       {analysis.transcript && (
@@ -290,56 +178,6 @@ export default function ReportPage() {
           </div>
         </div>
       )}
-
-      {/* Score summary — at the bottom so feedback is seen first */}
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Performance summary</h2>
-        <div className="flex flex-wrap items-center justify-center gap-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
-          <div className="text-center px-4 py-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Content</p>
-            <p className={`text-xl font-bold ${scoreColor(content)}`}>{content}</p>
-            <p className="text-xs text-gray-400">/100</p>
-          </div>
-          <div className="text-center px-4 py-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Delivery</p>
-            <p className={`text-xl font-bold ${scoreColor(delivery)}`}>{delivery}</p>
-            <p className="text-xs text-gray-400">/100</p>
-          </div>
-          <div className="text-center px-5 py-3 rounded-xl border-2 border-emerald-400 bg-emerald-50 dark:bg-emerald-950">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Overall</p>
-            <p className={`text-3xl font-bold ${scoreColor(overall)}`}>{overall}</p>
-            <p className="text-xs text-gray-400">/100</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DimensionCard({ dim, analysis }: { dim: ScoreDimension; analysis: Analysis }) {
-  const score   = Number(analysis[dim.key])
-  const pct     = scoreToPercent(score, dim.maxScore)
-  const fb      = analysis[dim.fbKey] as string | null
-
-  return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <p className="font-medium text-sm text-gray-900 dark:text-white">{dim.label}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{dim.description}</p>
-        </div>
-        <div className="text-right shrink-0 ml-4">
-          <span className={`text-lg font-bold ${scoreColor(pct)}`}>{Math.round(score)}</span>
-          <span className="text-xs text-gray-400">/{dim.maxScore}</span>
-        </div>
-      </div>
-      <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden mb-4">
-        <div
-          className="h-full rounded-full bg-brand-500 transition-all"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      {fb && <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{fb}</p>}
     </div>
   )
 }

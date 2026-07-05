@@ -8,7 +8,11 @@ function getOpenAI() {
       'OpenAI API key is not configured. Add OPENAI_API_KEY to .env.local and restart the dev server.'
     )
   }
-  return new OpenAI({ apiKey })
+  return new OpenAI({
+    apiKey,
+    timeout:    90_000,
+    maxRetries: 2,
+  })
 }
 
 function safeFilename(mimeType: string, filename: string): string {
@@ -67,23 +71,25 @@ export async function transcribeAudio(
   const name = safeFilename(mimeType, filename)
   const type = mimeType.split(';')[0].trim()
 
+  // Direct fetch is faster and more reliable in Next.js server routes
   try {
-    const openai = getOpenAI()
-    const file = await toFile(audioBuffer, name, { type })
-    const response = await openai.audio.transcriptions.create({
-      file,
-      model:           'whisper-1',
-      response_format: 'text',
-      language:        'en',
-    })
-    return typeof response === 'string' ? response : String(response)
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    // SDK file upload can fail in Next.js server — fall back to direct fetch
-    if (msg.includes('Invalid URL') || msg.includes('404')) {
-      return transcribeWithFetch(audioBuffer, mimeType, name)
+    return await transcribeWithFetch(audioBuffer, mimeType, name)
+  } catch (fetchErr) {
+    const fetchMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
+    try {
+      const openai = getOpenAI()
+      const file = await toFile(audioBuffer, name, { type })
+      const response = await openai.audio.transcriptions.create({
+        file,
+        model:           'whisper-1',
+        response_format: 'text',
+        language:        'en',
+      })
+      return typeof response === 'string' ? response : String(response)
+    } catch (sdkErr) {
+      const sdkMsg = sdkErr instanceof Error ? sdkErr.message : String(sdkErr)
+      throw new Error(fetchMsg || sdkMsg)
     }
-    throw err
   }
 }
 

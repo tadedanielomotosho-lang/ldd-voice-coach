@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+export function formatZodError(error: z.ZodError): string {
+  return error.issues.map(issue => issue.message).join(' ')
+}
+
 export const CreateStudentSchema = z.object({
   name:  z.string().min(2, 'Name must be at least 2 characters').max(100),
   email: z.string().email('Invalid email').optional().or(z.literal('')),

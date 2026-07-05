@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient, createServiceClient } from '@/lib/supabase/server'
-import { CreateSessionSchema } from '@/lib/validations'
-import { normalizeAudioMimeType } from '@/lib/utils'
-import { processSessionAnalysis } from '@/lib/analysis/processSession'
+import { CreateSessionSchema, formatZodError } from '@/lib/validations'
+import { normalizeAudioMimeType, formatProcessError } from '@/lib/utils'
 
-export const maxDuration = 60
+export const maxDuration = 30
 
 export async function POST(request: NextRequest) {
   const { supabase, attachCookies } = createRouteHandlerClient(request)
@@ -27,7 +26,7 @@ export async function POST(request: NextRequest) {
     // Validate fields
     const parsed = CreateSessionSchema.safeParse(JSON.parse(bodyJson))
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.message }, { status: 400 })
+      return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400 })
     }
 
     // Size check — 25MB
@@ -126,25 +125,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: sessionErr.message }, { status: 500 })
     }
 
-    // Queue analysis job
+    // Queue analysis — runs on the report page so upload returns quickly
     await service.from('analysis_jobs').insert({ session_id: sessionId })
 
-    const audioBuf = Buffer.from(audioBuffer)
-    const filename = `recording.${ext}`
-
-    // Analyse before responding so the report is ready when the user lands
-    await processSessionAnalysis(sessionId, {
-      buffer:   audioBuf,
-      mimeType: contentType,
-      filename,
-    })
-
     return attachCookies(
-      NextResponse.json({ session: { ...session, status: 'done' } }, { status: 201 })
+      NextResponse.json({ session }, { status: 201 })
     )
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Internal server error'
-    return attachCookies(NextResponse.json({ error: msg }, { status: 500 }))
+    return attachCookies(NextResponse.json({ error: formatProcessError(msg) }, { status: 500 }))
   }
 }
 

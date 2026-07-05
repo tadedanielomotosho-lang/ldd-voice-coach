@@ -58,3 +58,10 @@ export function getJoinedStudent(students: unknown): { name: string } | null {
   const row = students as { name?: string }
   return row.name ? { name: row.name } : null
 }
+
+export function formatProcessError(message: string): string {
+  if (/connection error|connect timeout|fetch failed|network|econnreset|etimedout|und_err_connect_timeout|gateway timeout|504/i.test(message)) {
+    return 'Could not reach the analysis service. Check your internet connection and try again.'
+  }
+  return message
+}

@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Mic, Square, Pause, Play, Trash2, Send, Loader2, AlertCircle } from 'lucide-react'
 import { useRecorder } from '@/lib/hooks/useRecorder'
-import { formatDuration, normalizeAudioMimeType } from '@/lib/utils'
+import { formatDuration, normalizeAudioMimeType, formatProcessError } from '@/lib/utils'
+import { submitRecording } from '@/lib/client/submitRecording'
 
 export default function StudioPage() {
   const router    = useRouter()
@@ -23,29 +24,27 @@ export default function StudioPage() {
   }
 
   async function handleSubmit() {
-    if (!recorder.audioBlob || !studentName.trim()) {
+    const trimmed = studentName.trim()
+    if (!recorder.audioBlob || !trimmed) {
       setError('Please enter a student name before submitting'); return
+    }
+    if (trimmed.length < 2) {
+      setError('Student name must be at least 2 characters'); return
     }
     setSubmitting(true)
     setError(null)
     try {
       const ext  = recorder.mimeType.includes('mp4') ? 'mp4' : recorder.mimeType.includes('ogg') ? 'ogg' : 'webm'
       const file = new File([recorder.audioBlob], `recording.${ext}`, { type: normalizeAudioMimeType(recorder.mimeType) })
-      const fd   = new FormData()
-      fd.append('audio_file', file)
-      fd.append('data', JSON.stringify({
-        student_name: studentName.trim(),
-      }))
-      const res  = await fetch('/api/sessions', { method: 'POST', body: fd, credentials: 'same-origin' })
-      const data = await res.json()
-      if (res.status === 401) {
+      const sessionId = await submitRecording(file, trimmed)
+      router.push(`/reports/${sessionId}`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Submission failed'
+      if (msg === 'SESSION_EXPIRED') {
         router.push('/login?reason=session-expired')
         return
       }
-      if (!res.ok) throw new Error(data.error || 'Submission failed')
-      router.push(`/reports/${data.session.id}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Submission failed')
+      setError(formatProcessError(msg))
       setSubmitting(false)
     }
   }
@@ -68,8 +67,8 @@ export default function StudioPage() {
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Student name</label>
-          <input type="text" required value={studentName} onChange={e => setStudentName(e.target.value)}
-            placeholder="e.g. Sarah Johnson"
+          <input type="text" required minLength={2} value={studentName} onChange={e => setStudentName(e.target.value)}
+            placeholder="e.g. Sarah Johnson (at least 2 characters)"
             className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500" />
         </div>
       </div>

@@ -5,7 +5,7 @@
       "maxDuration": 60
     },
     "app/api/sessions/[id]/process/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "app/api/reports/[id]/pdf/route.ts": {
       "maxDuration": 30

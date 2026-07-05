@@ -1,16 +1,30 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { Suspense, useState, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Upload, Mic, X, CheckCircle, Loader2, Square, Pause, Play,
   Trash2, AlertCircle,
 } from 'lucide-react'
 import { useRecorder } from '@/lib/hooks/useRecorder'
-import { formatDuration, normalizeAudioMimeType } from '@/lib/utils'
+import { formatDuration, normalizeAudioMimeType, formatProcessError } from '@/lib/utils'
+import { submitRecording } from '@/lib/client/submitRecording'
 
 type InputMode = 'record' | 'upload'
 
 export default function UploadPage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-2xl mx-auto p-6 animate-pulse space-y-4">
+        <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded-lg w-1/2" />
+        <div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-xl" />
+      </div>
+    }>
+      <UploadPageContent />
+    </Suspense>
+  )
+}
+
+function UploadPageContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const preselect    = searchParams.get('student')
@@ -28,7 +42,7 @@ export default function UploadPage() {
 
   const hasRecording = mode === 'record' && recorder.isStopped && !!recorder.audioBlob
   const hasAudio     = mode === 'upload' ? !!audioFile : hasRecording
-  const canSubmit    = hasAudio && !!studentName.trim()
+  const canSubmit    = hasAudio && studentName.trim().length >= 2
 
   useEffect(() => {
     if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -73,27 +87,25 @@ export default function UploadPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const file = getAudioFile()
-    if (!file || !studentName.trim()) {
+    const trimmed = studentName.trim()
+    if (!file || !trimmed) {
       setError('Please enter a student name and add a recording'); return
+    }
+    if (trimmed.length < 2) {
+      setError('Student name must be at least 2 characters'); return
     }
     setSubmitting(true)
     setError(null)
     try {
-      const fd = new FormData()
-      fd.append('audio_file', file)
-      fd.append('data', JSON.stringify({
-        student_name: studentName.trim(),
-      }))
-      const res = await fetch('/api/sessions', { method: 'POST', body: fd, credentials: 'same-origin' })
-      const data = await res.json()
-      if (res.status === 401) {
+      const sessionId = await submitRecording(file, trimmed)
+      router.push(`/reports/${sessionId}`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Submission failed'
+      if (msg === 'SESSION_EXPIRED') {
         router.push('/login?reason=session-expired')
         return
       }
-      if (!res.ok) throw new Error(data.error || 'Submission failed')
-      router.push(`/reports/${data.session.id}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Submission failed')
+      setError(formatProcessError(msg))
       setSubmitting(false)
     }
   }
@@ -122,8 +134,8 @@ export default function UploadPage() {
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Student name</label>
-            <input type="text" required value={studentName} onChange={e => setStudentName(e.target.value)}
-              placeholder="e.g. Sarah Johnson" maxLength={100}
+            <input type="text" required minLength={2} value={studentName} onChange={e => setStudentName(e.target.value)}
+              placeholder="e.g. Sarah Johnson (at least 2 characters)" maxLength={100}
               className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500 outline-none" />
           </div>
         </div>

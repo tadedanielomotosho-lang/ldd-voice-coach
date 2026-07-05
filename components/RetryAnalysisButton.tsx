@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { RefreshCw, Loader2 } from 'lucide-react'
 
+import { formatProcessError } from '@/lib/utils'
+
 export default function RetryAnalysisButton({ sessionId }: { sessionId: string }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -10,15 +12,18 @@ export default function RetryAnalysisButton({ sessionId }: { sessionId: string }
   async function handleRetry() {
     setLoading(true)
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/process`, { method: 'POST' })
+      const res = await fetch(`/api/sessions/${sessionId}/process`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
       if (!res.ok) {
         const data = await res.json()
-        alert(data.error || 'Retry failed')
+        alert(formatProcessError(data.error || 'Retry failed'))
         setLoading(false)
         return
       }
-      router.push(`/reports/${sessionId}`)
       router.refresh()
+      window.location.reload()
     } catch {
       alert('Retry failed. Please try again.')
       setLoading(false)

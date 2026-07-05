@@ -1,10 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
-export default function LoginPage() {
+function LoginForm() {
   const router  = useRouter()
   const searchParams = useSearchParams()
   const sessionExpired = searchParams.get('reason') === 'session-expired'
@@ -75,5 +75,19 @@ export default function LoginPage() {
         </Link>
       </p>
     </form>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-5 animate-pulse">
+        <div className="h-12 bg-gray-100 dark:bg-gray-800 rounded-lg" />
+        <div className="h-10 bg-gray-100 dark:bg-gray-800 rounded-lg" />
+        <div className="h-10 bg-gray-100 dark:bg-gray-800 rounded-lg" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

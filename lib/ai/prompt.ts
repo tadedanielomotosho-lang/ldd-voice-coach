@@ -1,8 +1,8 @@
 export function buildAnalysisPrompt(transcript: string, topic: string): string {
   const wordCount = transcript.trim().split(/\s+/).filter(Boolean).length
-  const coachingTarget = wordCount < 80 ? '5-7' : wordCount < 200 ? '7-10' : '10-15'
+  const coachingCount = wordCount < 80 ? 2 : wordCount < 200 ? 3 : 4
 
-  return `You are an expert LDD communication coach. Analyze this presentation transcript. Return ONLY valid JSON.
+  return `You are an LDD communication coach. Analyze this presentation. Return ONLY valid JSON. Be concise — 1-2 sentences per feedback field.
 
 TRANSCRIPT:
 """
@@ -11,42 +11,28 @@ ${transcript}
 
 TOPIC: ${topic}
 
-REQUIREMENTS:
+Rules:
+- Score each dimension honestly (use full ranges).
+- feedback: 1-2 sentences with one quoted phrase where helpful.
+- strengths: 2-3 items, detail 1-2 sentences each.
+- areas_for_improvement: 2-3 items, detail 1-2 sentences each.
+- transcript_coaching: exactly ${coachingCount} items with short quotes and rewrites.
+- ldd_coach_feedback: 4-5 short actionable bullets for the participant. Merge strengths, gaps, and next steps from the full analysis. No scores. Use clear coach language (e.g. "Open with…", "Add…", "Practice…"). Max ~25 words each.
 
-1. DIMENSION FEEDBACK — For hook, purpose, key_points, cta, clarity, tone, pace, pauses, volume:
-   - Write 3-5 detailed sentences per feedback field
-   - Quote exact phrases from the transcript using single quotes
-   - Explain what worked, what didn't, and give a specific improvement tip
-
-2. STRENGTHS — Provide 3-5 items with a short title and 2-3 sentence detail citing transcript quotes
-
-3. AREAS FOR IMPROVEMENT — Provide 3-5 items with a short title and 2-3 sentence detail citing transcript quotes
-
-4. TRANSCRIPT COACHING — Provide ${coachingTarget} sentence-level rewrites:
-   - Pick distinct sentences or phrases from the transcript (grammar, clarity, impact, filler words, weak wording)
-   - what_you_said: exact quote (10-50 words)
-   - suggested_version: improved rewrite
-   - why_better: 1-2 sentences explaining the improvement
-
-Return this JSON structure:
+JSON:
 {
-  "hook":       { "score": <0-20>, "feedback": "<detailed coaching with quotes>" },
-  "purpose":    { "score": <0-15>, "feedback": "<detailed coaching with quotes>" },
-  "key_points": { "score": <0-30>, "feedback": "<detailed coaching with quotes>" },
-  "cta":        { "score": <0-15>, "feedback": "<detailed coaching with quotes>" },
-  "clarity":    { "score": <0-20>, "feedback": "<detailed coaching with quotes>" },
-  "tone":       { "score": <0-25>, "feedback": "<detailed coaching with quotes>" },
-  "pace":       { "score": <0-25>, "feedback": "<detailed coaching with quotes>" },
-  "pauses":     { "score": <0-25>, "feedback": "<detailed coaching with quotes>" },
-  "volume":     { "score": <0-25>, "feedback": "<detailed coaching with quotes>" },
-  "strengths": [
-    { "title": "<strength name>", "detail": "<2-3 sentences with quotes>" }
-  ],
-  "areas_for_improvement": [
-    { "title": "<area name>", "detail": "<2-3 sentences with quotes>" }
-  ],
-  "transcript_coaching": [
-    { "what_you_said": "<quote>", "suggested_version": "<rewrite>", "why_better": "<reason>" }
-  ]
+  "hook":       { "score": <0-20>, "feedback": "..." },
+  "purpose":    { "score": <0-15>, "feedback": "..." },
+  "key_points": { "score": <0-30>, "feedback": "..." },
+  "cta":        { "score": <0-15>, "feedback": "..." },
+  "clarity":    { "score": <0-20>, "feedback": "..." },
+  "tone":       { "score": <0-25>, "feedback": "..." },
+  "pace":       { "score": <0-25>, "feedback": "..." },
+  "pauses":     { "score": <0-25>, "feedback": "..." },
+  "volume":     { "score": <0-25>, "feedback": "..." },
+  "strengths": [{ "title": "...", "detail": "..." }],
+  "areas_for_improvement": [{ "title": "...", "detail": "..." }],
+  "transcript_coaching": [{ "what_you_said": "...", "suggested_version": "...", "why_better": "..." }],
+  "ldd_coach_feedback": ["...", "..."]
 }`
 }
