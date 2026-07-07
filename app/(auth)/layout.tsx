@@ -1,10 +1,17 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getSupabasePublicEnv } from '@/lib/env'
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (user) redirect('/dashboard')
+  if (getSupabasePublicEnv().isConfigured) {
+    try {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) redirect('/dashboard')
+    } catch {
+      // Still render auth pages if the session check fails.
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-700 to-brand-900 flex items-center justify-center p-4">

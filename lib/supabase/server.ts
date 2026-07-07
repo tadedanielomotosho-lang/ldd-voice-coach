@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { getSupabasePublicEnv } from '@/lib/env'
 
 type CookieToSet = {
   name: string
@@ -10,11 +11,13 @@ type CookieToSet = {
 }
 
 export async function createClient() {
+  const { url, anonKey, isConfigured } = getSupabasePublicEnv()
+  if (!isConfigured) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  }
+
   const cookieStore = await cookies()
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  return createServerClient(url!, anonKey!, {
       cookies: {
         getAll()            { return cookieStore.getAll() },
         setAll(cookiesToSet: { name: string; value: string; options?: Parameters<typeof cookieStore.set>[2] }[]) {
@@ -39,12 +42,14 @@ export function createServiceClient() {
 
 /** Use in Route Handlers so auth cookies refresh on API requests (middleware skips /api). */
 export function createRouteHandlerClient(request: NextRequest) {
+  const { url, anonKey, isConfigured } = getSupabasePublicEnv()
+  if (!isConfigured) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  const supabase = createServerClient(url!, anonKey!, {
       cookies: {
         getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet: CookieToSet[]) {
