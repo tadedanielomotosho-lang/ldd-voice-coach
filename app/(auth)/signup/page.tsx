@@ -1,11 +1,9 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 export default function SignupPage() {
-  const router = useRouter()
   const [fullName, setFullName]   = useState('')
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
@@ -16,19 +14,23 @@ export default function SignupPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const supabase = createClient()
-    const { data, error } = await supabase.auth.signUp({
-      email, password,
-      options: { data: { full_name: fullName } }
-    })
-    if (error) { setError(error.message); setLoading(false); return }
-    if (!data.session) {
-      setError('Account created. Check your email to confirm, then sign in.')
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signUp({
+        email, password,
+        options: { data: { full_name: fullName } }
+      })
+      if (error) { setError(error.message); setLoading(false); return }
+      if (!data.session) {
+        setError('Account created. Check your email to confirm, then sign in.')
+        setLoading(false)
+        return
+      }
+      window.location.href = '/dashboard'
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign up failed. Please try again.')
       setLoading(false)
-      return
     }
-    router.push('/dashboard')
-    router.refresh()
   }
 
   return (

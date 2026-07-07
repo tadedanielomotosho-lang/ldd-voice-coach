@@ -1,11 +1,10 @@
 'use client'
 import { Suspense, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 function LoginForm() {
-  const router  = useRouter()
   const searchParams = useSearchParams()
   const sessionExpired = searchParams.get('reason') === 'session-expired'
   const [email, setEmail]       = useState('')
@@ -17,18 +16,23 @@ function LoginForm() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      const message = error.message === 'Invalid login credentials'
-        ? 'Invalid email or password. Try again, use Forgot password, or create a new account.'
-        : error.message
-      setError(message)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        const message = error.message === 'Invalid login credentials'
+          ? 'Invalid email or password. Try again, use Forgot password, or create a new account.'
+          : error.message
+        setError(message)
+        setLoading(false)
+        return
+      }
+      // Full page navigation ensures auth cookies are picked up by the server
+      window.location.href = '/dashboard'
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign in failed. Please try again.')
       setLoading(false)
-      return
     }
-    router.push('/dashboard')
-    router.refresh()
   }
 
   return (
