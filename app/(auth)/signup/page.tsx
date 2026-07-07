@@ -1,34 +1,20 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { signUpAction } from '../actions'
 
 export default function SignupPage() {
-  const [fullName, setFullName]   = useState('')
-  const [email, setEmail]         = useState('')
-  const [password, setPassword]   = useState('')
-  const [loading, setLoading]     = useState(false)
-  const [error, setError]         = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signUp({
-        email, password,
-        options: { data: { full_name: fullName } }
-      })
-      if (error) { setError(error.message); setLoading(false); return }
-      if (!data.session) {
-        setError('Account created. Check your email to confirm, then sign in.')
-        setLoading(false)
-        return
-      }
-      window.location.href = '/dashboard'
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign up failed. Please try again.')
+    const formData = new FormData(e.currentTarget)
+    const result = await signUpAction(formData)
+    if (result?.error) {
+      setError(result.error)
       setLoading(false)
     }
   }
@@ -47,17 +33,17 @@ export default function SignupPage() {
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Full name</label>
-          <input type="text" required value={fullName} onChange={e => setFullName(e.target.value)}
+          <input type="text" name="fullName" required
             className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition" />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Email</label>
-          <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+          <input type="email" name="email" required
             className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition" />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Password</label>
-          <input type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)}
+          <input type="password" name="password" required minLength={8}
             className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition" />
         </div>
       </div>

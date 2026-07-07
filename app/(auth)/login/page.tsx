@@ -2,35 +2,22 @@
 import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { signInAction } from '../actions'
 
 function LoginForm() {
   const searchParams = useSearchParams()
   const sessionExpired = searchParams.get('reason') === 'session-expired'
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) {
-        const message = error.message === 'Invalid login credentials'
-          ? 'Invalid email or password. Try again, use Forgot password, or create a new account.'
-          : error.message
-        setError(message)
-        setLoading(false)
-        return
-      }
-      // Full page navigation ensures auth cookies are picked up by the server
-      window.location.href = '/dashboard'
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign in failed. Please try again.')
+    const formData = new FormData(e.currentTarget)
+    const result = await signInAction(formData)
+    if (result?.error) {
+      setError(result.error)
       setLoading(false)
     }
   }
@@ -54,12 +41,12 @@ function LoginForm() {
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Email</label>
-          <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+          <input type="email" name="email" required
             className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition" />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Password</label>
-          <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
+          <input type="password" name="password" required
             className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition" />
         </div>
       </div>
