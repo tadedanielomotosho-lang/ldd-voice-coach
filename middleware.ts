@@ -52,9 +52,14 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Skip Next.js internals and static assets so CSS/JS always load.
-     */
-    '/((?!_next/static|_next/image|_next/webpack-hmr|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js|woff2?|ttf|ico)$).*)',
+    '/dashboard/:path*',
+    '/students/:path*',
+    '/studio/:path*',
+    '/upload/:path*',
+    '/reports/:path*',
+    '/login',
+    '/signup',
+    '/reset-password',
+    '/update-password',
   ],
 }
