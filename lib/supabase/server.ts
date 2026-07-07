@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { getSupabasePublicEnv } from '@/lib/env'
+import { getSupabasePublicEnv, getSupabaseConfigError, cleanEnvValue } from '@/lib/env'
 
 type CookieToSet = {
   name: string
@@ -11,11 +11,10 @@ type CookieToSet = {
 }
 
 export async function createClient() {
-  const { url, anonKey, isConfigured } = getSupabasePublicEnv()
-  if (!isConfigured) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
-  }
+  const configError = getSupabaseConfigError()
+  if (configError) throw new Error(configError)
 
+  const { url, anonKey } = getSupabasePublicEnv()
   const cookieStore = await cookies()
   return createServerClient(url!, anonKey!, {
       cookies: {
@@ -33,20 +32,20 @@ export async function createClient() {
 }
 
 export function createServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
+  const { url } = getSupabasePublicEnv()
+  const serviceKey = cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY)
+  if (!url || !serviceKey) {
+    throw new Error('Missing Supabase server credentials')
+  }
+  return createSupabaseClient(url, serviceKey, { auth: { persistSession: false } })
 }
 
 /** Use in Route Handlers so auth cookies refresh on API requests (middleware skips /api). */
 export function createRouteHandlerClient(request: NextRequest) {
-  const { url, anonKey, isConfigured } = getSupabasePublicEnv()
-  if (!isConfigured) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
-  }
+  const configError = getSupabaseConfigError()
+  if (configError) throw new Error(configError)
 
+  const { url, anonKey } = getSupabasePublicEnv()
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(url!, anonKey!, {

@@ -2,13 +2,10 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getSupabasePublicEnv } from '@/lib/env'
+import { getSupabasePublicEnv, getSupabaseConfigError } from '@/lib/env'
 
 function configError() {
-  return {
-    error:
-      'App is not configured for sign-in yet. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel, then redeploy.',
-  }
+  return { error: getSupabaseConfigError() ?? 'Supabase is not configured.' }
 }
 
 export async function signInAction(formData: FormData) {

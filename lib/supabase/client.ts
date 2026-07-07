@@ -1,10 +1,10 @@
 import { createBrowserClient } from '@supabase/ssr'
-import { getSupabasePublicEnv } from '@/lib/env'
+import { getSupabaseConfigError, getSupabasePublicEnv } from '@/lib/env'
 
 export function createClient() {
-  const { url, anonKey, isConfigured } = getSupabasePublicEnv()
-  if (!isConfigured) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
-  }
+  const configError = getSupabaseConfigError()
+  if (configError) throw new Error(configError)
+
+  const { url, anonKey } = getSupabasePublicEnv()
   return createBrowserClient(url!, anonKey!)
 }
