@@ -1,14 +1,15 @@
 'use server'
 
-import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabasePublicEnv, getSupabaseConfigError } from '@/lib/env'
 
-function configError() {
+type AuthResult = { ok: true } | { error: string }
+
+function configError(): AuthResult {
   return { error: getSupabaseConfigError() ?? 'Supabase is not configured.' }
 }
 
-export async function signInAction(formData: FormData) {
+export async function signInAction(formData: FormData): Promise<AuthResult> {
   if (!getSupabasePublicEnv().isConfigured) return configError()
 
   const email = String(formData.get('email') || '').trim()
@@ -31,10 +32,10 @@ export async function signInAction(formData: FormData) {
     return { error: err instanceof Error ? err.message : 'Sign in failed. Please try again.' }
   }
 
-  redirect('/dashboard')
+  return { ok: true }
 }
 
-export async function signUpAction(formData: FormData) {
+export async function signUpAction(formData: FormData): Promise<AuthResult> {
   if (!getSupabasePublicEnv().isConfigured) return configError()
 
   const fullName = String(formData.get('fullName') || '').trim()
@@ -60,5 +61,5 @@ export async function signUpAction(formData: FormData) {
     return { error: err instanceof Error ? err.message : 'Sign up failed. Please try again.' }
   }
 
-  redirect('/dashboard')
+  return { ok: true }
 }

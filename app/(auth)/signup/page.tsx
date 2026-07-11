@@ -1,9 +1,11 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { signUpAction } from '../actions'
 
 export default function SignupPage() {
+  const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -12,9 +14,17 @@ export default function SignupPage() {
     setLoading(true)
     setError(null)
     const formData = new FormData(e.currentTarget)
-    const result = await signUpAction(formData)
-    if (result?.error) {
-      setError(result.error)
+    try {
+      const result = await signUpAction(formData)
+      if ('error' in result) {
+        setError(result.error)
+        setLoading(false)
+        return
+      }
+      router.push('/dashboard')
+      router.refresh()
+    } catch {
+      setError('Sign up failed. Check your connection and try again.')
       setLoading(false)
     }
   }

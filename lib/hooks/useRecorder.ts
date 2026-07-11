@@ -24,6 +24,13 @@ export function useRecorder() {
   }, [])
 
   const start = useCallback(async () => {
+    if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Microphone recording is not supported in this browser.')
+    }
+    if (typeof MediaRecorder === 'undefined') {
+      throw new Error('Audio recording is not supported in this browser.')
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream

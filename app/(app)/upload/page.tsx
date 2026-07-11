@@ -32,7 +32,7 @@ function UploadPageContent() {
   const errorRef     = useRef<HTMLDivElement>(null)
   const recorder     = useRecorder()
 
-  const [mode,        setMode]        = useState<InputMode>('record')
+  const [mode,        setMode]        = useState<InputMode>('upload')
   const [studentName, setStudentName] = useState(preselect || '')
   const [audioFile,   setAudioFile]   = useState<File | null>(null)
   const [dragging,    setDragging]    = useState(false)
@@ -47,6 +47,12 @@ function UploadPageContent() {
   useEffect(() => {
     if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [error])
+
+  useEffect(() => {
+    const requested = searchParams.get('mode')
+    if (requested === 'record') setMode('record')
+    if (requested === 'upload') setMode('upload')
+  }, [searchParams])
 
   function switchMode(next: InputMode) {
     setMode(next)

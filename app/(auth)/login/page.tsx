@@ -1,10 +1,11 @@
 'use client'
 import { Suspense, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { signInAction } from '../actions'
 
 function LoginForm() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const sessionExpired = searchParams.get('reason') === 'session-expired'
   const [error, setError] = useState<string | null>(null)
@@ -15,9 +16,17 @@ function LoginForm() {
     setLoading(true)
     setError(null)
     const formData = new FormData(e.currentTarget)
-    const result = await signInAction(formData)
-    if (result?.error) {
-      setError(result.error)
+    try {
+      const result = await signInAction(formData)
+      if ('error' in result) {
+        setError(result.error)
+        setLoading(false)
+        return
+      }
+      router.push('/dashboard')
+      router.refresh()
+    } catch {
+      setError('Sign in failed. Check your connection and try again.')
       setLoading(false)
     }
   }

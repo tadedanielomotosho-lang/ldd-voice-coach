@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { LayoutDashboard, Users, Mic, Upload, FileText, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, getInitials } from '@/lib/utils'
@@ -8,14 +8,25 @@ import { cn, getInitials } from '@/lib/utils'
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/students',  icon: Users,           label: 'Students'  },
-  { href: '/studio',    icon: Mic,             label: 'Studio'    },
+  { href: '/studio', icon: Mic, label: 'Studio' },
   { href: '/upload',    icon: Upload,          label: 'Upload'    },
   { href: '/reports',   icon: FileText,        label: 'Reports'   },
 ]
 
 export default function Sidebar({ user }: { user: { name: string; email: string } }) {
-  const pathname = usePathname()
-  const router   = useRouter()
+  const pathname     = usePathname()
+  const searchParams   = useSearchParams()
+  const router         = useRouter()
+
+  function isActive(href: string, label: string) {
+    if (label === 'Studio') {
+      return pathname === '/studio' || (pathname === '/upload' && searchParams.get('mode') === 'record')
+    }
+    if (label === 'Upload') {
+      return pathname === '/upload' && searchParams.get('mode') !== 'record'
+    }
+    return pathname === href || pathname.startsWith(href + '/')
+  }
 
   async function signOut() {
     const supabase = createClient()
@@ -35,7 +46,7 @@ export default function Sidebar({ user }: { user: { name: string; email: string 
       </div>
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         {navItems.map(({ href, icon: Icon, label }) => {
-          const active = pathname === href || pathname.startsWith(href + '/')
+          const active = isActive(href, label)
           return (
             <Link key={href} href={href}
               className={cn(
