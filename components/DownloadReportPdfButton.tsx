@@ -45,7 +45,7 @@ export default function DownloadReportPdfButton({ sessionId }: { sessionId: stri
       >
         {loading
           ? <><Loader2 className="w-4 h-4 animate-spin" /> Preparing PDF…</>
-          : <><Download className="w-4 h-4" /> Download PDF summary</>}
+          : <><Download className="w-4 h-4" /> Download full coaching PDF</>}
       </button>
       {error && (
         <p className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>

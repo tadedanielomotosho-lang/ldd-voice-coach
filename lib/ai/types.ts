@@ -33,6 +33,7 @@ export const LDDFrameworkSchema = z.object({
   executive_summary:      z.string().min(40),
   practice_goal:          z.string().min(16),
   ldd_coach_feedback:     z.array(z.string().min(16)).min(3).max(6),
+  full_redraft:           z.string().min(40).optional(),
 })
 
 export type LDDFrameworkResult = z.infer<typeof LDDFrameworkSchema>

@@ -10,6 +10,8 @@ import {
   Target,
   Sparkles,
   Mic2,
+  FileText,
+  PenLine,
 } from 'lucide-react'
 import DownloadReportPdfButton from '@/components/DownloadReportPdfButton'
 import DeleteSessionButton from '@/components/DeleteSessionButton'
@@ -17,6 +19,7 @@ import RetryAnalysisButton from '@/components/RetryAnalysisButton'
 import { useRealtimeSession } from '@/lib/hooks/useRealtimeSession'
 import {
   getExecutiveSummary,
+  getFullRedraft,
   getLddCoachFeedback,
   getPracticeGoal,
 } from '@/lib/report/coachFeedback'
@@ -32,7 +35,7 @@ import {
 function ScoreBar({ score, max }: { score: number; max: number }) {
   const pct = Math.max(0, Math.min(100, Math.round((score / max) * 100)))
   return (
-    <div className="h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+    <div className="h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden" aria-hidden="true">
       <div
         className="h-full rounded-full bg-brand-600 dark:bg-brand-500 transition-all"
         style={{ width: `${pct}%` }}
@@ -52,14 +55,9 @@ function DimensionCard({
   const feedback = String(analysis[dim.fbKey] ?? '')
   return (
     <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">{dim.label}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{dim.description}</p>
-        </div>
-        <p className="text-sm font-bold text-brand-700 dark:text-brand-400 shrink-0">
-          {Math.round(score)}/{dim.maxScore}
-        </p>
+      <div>
+        <p className="text-sm font-semibold text-gray-900 dark:text-white">{dim.label}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{dim.description}</p>
       </div>
       <ScoreBar score={score} max={dim.maxScore} />
       {feedback && (
@@ -166,6 +164,7 @@ export default function ReportPage() {
   const coachFeedback    = getLddCoachFeedback(analysis)
   const executiveSummary = getExecutiveSummary(analysis)
   const practiceGoal     = getPracticeGoal(analysis)
+  const fullRedraft      = getFullRedraft(analysis)
   const { strengths, areas } = getReportSummary(analysis)
   const coaching = analysis.transcript_coaching ?? []
 
@@ -215,33 +214,15 @@ export default function ReportPage() {
         </div>
       )}
 
-      {/* First-page summary */}
+      {/* First-page summary — no numeric scores on screen */}
       <div className="bg-brand-50 dark:bg-brand-950/30 rounded-xl border border-brand-200 dark:border-brand-800 p-6 space-y-5">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-brand-600 dark:text-brand-400" />
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Coach summary</h2>
         </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-lg bg-white/80 dark:bg-gray-900/60 border border-brand-100 dark:border-brand-900 p-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Overall</p>
-            <p className="text-xl font-bold text-brand-700 dark:text-brand-400">
-              {Math.round(Number(analysis.overall_score))}
-            </p>
-          </div>
-          <div className="rounded-lg bg-white/80 dark:bg-gray-900/60 border border-brand-100 dark:border-brand-900 p-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Content</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">
-              {Math.round(Number(analysis.content_score))}
-            </p>
-          </div>
-          <div className="rounded-lg bg-white/80 dark:bg-gray-900/60 border border-brand-100 dark:border-brand-900 p-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Delivery</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">
-              {Math.round(Number(analysis.delivery_score))}
-            </p>
-          </div>
-        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Scores and grades are included in the downloaded PDF only.
+        </p>
 
         {executiveSummary && (
           <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
@@ -253,7 +234,7 @@ export default function ReportPage() {
           <ul className="space-y-3">
             {coachFeedback.map((point, i) => (
               <li key={i} className="flex gap-3 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                <span className="text-brand-600 dark:text-brand-400 font-bold shrink-0">{i + 1}.</span>
+                <span className="text-brand-600 dark:text-brand-400 font-bold shrink-0">•</span>
                 <span>{point}</span>
               </li>
             ))}
@@ -311,7 +292,7 @@ export default function ReportPage() {
         </div>
       )}
 
-      {/* Full content feedback */}
+      {/* Full content feedback — bars only, no numeric grades */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Content coaching</h2>
         <div className="space-y-3">
@@ -321,7 +302,7 @@ export default function ReportPage() {
         </div>
       </div>
 
-      {/* Full delivery feedback — pace, pauses, volume emphasised */}
+      {/* Full delivery feedback */}
       <div>
         <div className="flex items-center gap-2 mb-3">
           <Mic2 className="w-5 h-5 text-brand-600 dark:text-brand-400" />
@@ -340,7 +321,7 @@ export default function ReportPage() {
       {/* Transcript coaching rewrites */}
       {coaching.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Line-by-line coaching</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">What you said vs try this</h2>
           <div className="space-y-3">
             {coaching.map((item, i) => (
               <div
@@ -362,10 +343,29 @@ export default function ReportPage() {
         </div>
       )}
 
+      {/* Full redrafted script */}
+      {fullRedraft && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <PenLine className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Full redrafted script</h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+            A polished version you can practise aloud — compare it with your original transcript below.
+          </p>
+          <div className="rounded-xl border border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-950/20 p-5">
+            <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">{fullRedraft}</p>
+          </div>
+        </div>
+      )}
+
       {/* Full transcript */}
       {analysis.transcript && (
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Full transcript</h2>
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="w-5 h-5 text-gray-500" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Full transcript</h2>
+          </div>
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{analysis.transcript}</p>
           </div>

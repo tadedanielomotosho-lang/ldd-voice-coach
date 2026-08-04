@@ -229,6 +229,7 @@ type AnalysisResult = {
   executive_summary: string
   practice_goal: string
   ldd_coach_feedback: string[]
+  full_redraft: string
 }
 
 async function analyseWithGPT4o(
@@ -247,7 +248,7 @@ async function analyseWithGPT4o(
     body: JSON.stringify({
       model:           'gpt-4o',
       temperature:     0.2,
-      max_tokens:      3600,
+      max_tokens:      4500,
       response_format: { type: 'json_object' },
       messages: [
         {
@@ -356,13 +357,14 @@ DELIVERY (100) — infer from wording, fillers, run-ons, punctuation-like breaks
 ════════════════════════════════════════
 OUTPUT FIELD RULES
 ════════════════════════════════════════
-- Each dimension feedback: 3–5 sentences. Structure: (1) strength with quote, (2) gap with quote/evidence, (3) exact next action + example, (4) for pace/pauses/volume include where/when cues as above.
-- strengths: 2–3 items. title + detail (2–3 sentences, with a quote).
-- areas_for_improvement: 2–3 items, ordered by impact. title + detail (2–3 sentences: why it matters + what to practise + example).
+- Each dimension feedback: 3–5 sentences. Structure: (1) strength with quote, (2) gap with quote/evidence, (3) exact next action + example, (4) for pace/pauses/volume include where/when cues as above. Do NOT mention numeric scores in any feedback text (scores are shown only in the PDF download).
+- strengths: 2–3 items. title + detail (2–3 sentences, with a quote). No numeric scores.
+- areas_for_improvement: 2–3 items, ordered by impact. title + detail (2–3 sentences: why it matters + what to practise + example). No numeric scores.
 - transcript_coaching: exactly ${coachingCount} items. Prefer grammar fixes, weak openings, unclear CTAs, and rushed delivery moments. Keep quotes short.
 - executive_summary: 3–5 sentences for the first page. Balanced overview: overall impression, 1–2 standout strengths, top 1–2 priorities (must mention pace OR pauses/breathing OR volume if any delivery gap is material), and the next practice focus. No raw numeric scores in this paragraph.
 - practice_goal: 1–2 sentences. One concrete drill for the next recording (include a delivery cue when delivery is a priority).
 - ldd_coach_feedback: 5 bullets for the first-page summary. Order: (1) encourage with a specific strength + quote, (2–4) prioritised actions (include at least one delivery bullet covering pace, pause/breath, or volume with a when/where cue), (5) practice_goal restated briefly. No numeric scores. ~30–45 words each. Use coach verbs: "Open with…", "Pause after…", "Project…", "Practise…".
+- full_redraft: A complete polished rewrite of the whole presentation the participant can practise aloud. Keep the same core message and roughly similar length. Improve hook, purpose, structure, clarity/grammar, CTA, and natural spoken rhythm (mark short pause points with ... or [pause] where helpful). Write it as a ready-to-deliver script matching the original speaker voice.
 
 JSON schema:
 {
@@ -380,6 +382,7 @@ JSON schema:
   "transcript_coaching": [{ "what_you_said": "...", "suggested_version": "...", "why_better": "..." }],
   "executive_summary": "...",
   "practice_goal": "...",
-  "ldd_coach_feedback": ["...", "...", "...", "...", "..."]
+  "ldd_coach_feedback": ["...", "...", "...", "...", "..."],
+  "full_redraft": "..."
 }`
 }

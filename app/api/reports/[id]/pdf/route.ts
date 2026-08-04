@@ -8,6 +8,7 @@ import {
 } from '@/lib/report/generateReportPdf'
 import {
   getExecutiveSummary,
+  getFullRedraft,
   getLddCoachFeedback,
   getPracticeGoal,
 } from '@/lib/report/coachFeedback'
@@ -57,6 +58,7 @@ export async function GET(
       delivery:    Math.round(Number(typedAnalysis.delivery_score)),
       executiveSummary: getExecutiveSummary(typedAnalysis),
       practiceGoal: getPracticeGoal(typedAnalysis),
+      fullRedraft: getFullRedraft(typedAnalysis),
       coachFeedback: getLddCoachFeedback(typedAnalysis),
       strengths,
       areas,

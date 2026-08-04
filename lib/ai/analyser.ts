@@ -20,7 +20,7 @@ export async function analysePresentation(
   const response = await getOpenAI().chat.completions.create({
     model:           'gpt-4o-mini',
     temperature:     0.2,
-    max_tokens:      3600,
+    max_tokens:      4500,
     response_format: { type: 'json_object' },
     messages: [
       {

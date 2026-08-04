@@ -89,3 +89,18 @@ export function getPracticeGoal(analysis: Analysis): string | null {
   const goal = raw?.practice_goal?.trim()
   return goal || null
 }
+
+export function getFullRedraft(analysis: Analysis): string | null {
+  const raw = analysis.raw_ai_response as RawAnalysis | null
+  const redraft = raw?.full_redraft?.trim()
+  if (redraft) return redraft
+
+  const coaching = analysis.transcript_coaching ?? []
+  if (coaching.length === 0) return null
+
+  // Fallback for older analyses: stitch suggested lines into a practice script
+  return coaching
+    .map((item) => item.suggested_version.trim())
+    .filter(Boolean)
+    .join(' ')
+}
