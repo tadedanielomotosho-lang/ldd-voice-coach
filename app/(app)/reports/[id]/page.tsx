@@ -185,6 +185,11 @@ export default function ReportPage() {
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <DownloadReportPdfButton sessionId={id} />
+              <RetryAnalysisButton
+                sessionId={id}
+                force
+                className="inline-flex items-center gap-2 rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950/40 disabled:opacity-50"
+              />
               <DeleteSessionButton
                 sessionId={id}
                 sessionName={String(session?.session_name || '')}

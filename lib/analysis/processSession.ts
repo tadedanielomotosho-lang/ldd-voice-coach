@@ -84,11 +84,13 @@ async function runAnalysis(
 
 export async function processSessionAnalysis(
   sessionId: string,
-  cachedAudio?: CachedAudio
+  cachedAudio?: CachedAudio,
+  options?: { force?: boolean }
 ): Promise<void> {
   assertOpenAIKey()
 
   const service = createServiceClient()
+  const force = Boolean(options?.force)
 
   const { data: session, error: sessionErr } = await service
     .from('sessions')
@@ -99,7 +101,7 @@ export async function processSessionAnalysis(
   if (sessionErr || !session) throw new Error('Session not found')
   if (!session.audio_storage_path) throw new Error('No audio file for session')
 
-  if (session.status === 'processing' && !cachedAudio) {
+  if (session.status === 'processing' && !cachedAudio && !force) {
     // Another request is already analysing with the uploaded audio
     return
   }
@@ -110,9 +112,18 @@ export async function processSessionAnalysis(
     .eq('session_id', sessionId)
     .maybeSingle()
 
-  if (existing) {
+  if (existing && !force) {
     await service.from('sessions').update({ status: 'done' }).eq('id', sessionId)
     return
+  }
+
+  if (existing && force) {
+    const { error: deleteErr } = await service
+      .from('analyses')
+      .delete()
+      .eq('session_id', sessionId)
+
+    if (deleteErr) throw new Error(`Failed to clear prior analysis: ${deleteErr.message}`)
   }
 
   const { data: job } = await service
@@ -121,7 +132,7 @@ export async function processSessionAnalysis(
     .eq('session_id', sessionId)
     .maybeSingle()
 
-  if (session.status === 'error') {
+  if (session.status === 'error' || force) {
     await service.from('sessions').update({ status: 'pending' }).eq('id', sessionId)
     if (job) {
       await service.from('analysis_jobs').update({

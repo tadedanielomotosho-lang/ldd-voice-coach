@@ -19,6 +19,10 @@ export async function POST(
       )
     }
 
+    const force =
+      request.nextUrl.searchParams.get('force') === '1' ||
+      request.nextUrl.searchParams.get('force') === 'true'
+
     const { data: session } = await supabase
       .from('sessions')
       .select('id, status')
@@ -29,7 +33,7 @@ export async function POST(
     if (!session) {
       return attachCookies(NextResponse.json({ error: 'Session not found' }, { status: 404 }))
     }
-    if (session.status === 'done') {
+    if (session.status === 'done' && !force) {
       return attachCookies(NextResponse.json({ message: 'Already complete' }))
     }
 
@@ -48,8 +52,8 @@ export async function POST(
       }
     }
 
-    await processSessionAnalysis(id, cachedAudio)
-    return attachCookies(NextResponse.json({ success: true }))
+    await processSessionAnalysis(id, cachedAudio, { force })
+    return attachCookies(NextResponse.json({ success: true, force }))
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Analysis failed'
     return attachCookies(
