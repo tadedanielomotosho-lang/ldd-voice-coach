@@ -3,6 +3,7 @@ import { transcribeAudio, countWords } from '@/lib/ai/whisper'
 import { analysePresentation } from '@/lib/ai/analyser'
 import { calculateScores } from '@/lib/ai/scorer'
 import { downloadSessionAudio } from '@/lib/analysis/downloadAudio'
+import { fetchPriorAttempt } from '@/lib/analysis/priorAttempt'
 
 export type CachedAudio = {
   buffer:   Buffer
@@ -34,7 +35,8 @@ async function runAnalysis(
 ) {
   const transcript = await transcribeAudio(audio.buffer, audio.mimeType, audio.filename)
   const wordCount  = countWords(transcript)
-  const analysis   = await analysePresentation(transcript, session.presentation_topic)
+  const prior      = await fetchPriorAttempt(service, session.student_id, sessionId)
+  const analysis   = await analysePresentation(transcript, session.presentation_topic, prior)
   const scores     = calculateScores(analysis)
 
   const { error: insertErr } = await service.from('analyses').insert({

@@ -121,6 +121,8 @@ export interface LDDFrameworkResult {
   transcript_coaching: CoachingItem[]
   strengths:             FeedbackItem[]
   areas_for_improvement: FeedbackItem[]
+  executive_summary:     string
+  practice_goal:         string
   ldd_coach_feedback:    string[]
 }
 

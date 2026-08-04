@@ -132,6 +132,20 @@ Set all environment variables in Vercel dashboard → **Settings → Environment
 overall = (content_score × 0.6) + (delivery_score × 0.4)
 ```
 
+### Coaching feedback standards
+Every analysis follows the same coaching rubric:
+1. **Specific** — cite short transcript quotes and tie them to each criterion
+2. **Balanced** — name a strength before each improvement
+3. **Actionable** — exact next step, why it matters, and an example
+4. **Prioritised** — highest-impact changes first
+5. **Encouraging** — motivating coach tone
+6. **Consistent** — fixed score bands every time
+7. **Progress-oriented** — compare to the student's prior attempt when available and set a next practice goal
+
+Delivery notes always cover **where pace is too fast/slow**, **when to pause and breathe**, and **whether volume is too low or projected enough**.
+
+The report opens with a **Coach summary** (executive overview, prioritised bullets, practice goal). Full content, delivery, and line-by-line coaching follow below; the PDF includes the same structure.
+
 ---
 
 ## Architecture

@@ -2,14 +2,72 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, AlertTriangle, MessageSquare } from 'lucide-react'
+import {
+  ArrowLeft,
+  Loader2,
+  AlertTriangle,
+  MessageSquare,
+  Target,
+  Sparkles,
+  Mic2,
+} from 'lucide-react'
 import DownloadReportPdfButton from '@/components/DownloadReportPdfButton'
 import DeleteSessionButton from '@/components/DeleteSessionButton'
 import RetryAnalysisButton from '@/components/RetryAnalysisButton'
 import { useRealtimeSession } from '@/lib/hooks/useRealtimeSession'
-import { getLddCoachFeedback } from '@/lib/report/coachFeedback'
+import {
+  getExecutiveSummary,
+  getLddCoachFeedback,
+  getPracticeGoal,
+} from '@/lib/report/coachFeedback'
+import { getReportSummary } from '@/lib/report/generateReportPdf'
 import { formatDate, formatDuration, getJoinedStudent, formatProcessError } from '@/lib/utils'
-import type { Analysis } from '@/types'
+import {
+  CONTENT_DIMENSIONS,
+  DELIVERY_DIMENSIONS,
+  type Analysis,
+  type ScoreDimension,
+} from '@/types'
+
+function ScoreBar({ score, max }: { score: number; max: number }) {
+  const pct = Math.max(0, Math.min(100, Math.round((score / max) * 100)))
+  return (
+    <div className="h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+      <div
+        className="h-full rounded-full bg-brand-600 dark:bg-brand-500 transition-all"
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  )
+}
+
+function DimensionCard({
+  dim,
+  analysis,
+}: {
+  dim: ScoreDimension
+  analysis: Analysis
+}) {
+  const score = Number(analysis[dim.key] ?? 0)
+  const feedback = String(analysis[dim.fbKey] ?? '')
+  return (
+    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">{dim.label}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{dim.description}</p>
+        </div>
+        <p className="text-sm font-bold text-brand-700 dark:text-brand-400 shrink-0">
+          {Math.round(score)}/{dim.maxScore}
+        </p>
+      </div>
+      <ScoreBar score={score} max={dim.maxScore} />
+      {feedback && (
+        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed pt-1">{feedback}</p>
+      )}
+    </div>
+  )
+}
 
 export default function ReportPage() {
   const params   = useParams()
@@ -104,8 +162,12 @@ export default function ReportPage() {
     )
   }
 
-  const student       = getJoinedStudent(session?.students)
-  const coachFeedback = getLddCoachFeedback(analysis)
+  const student          = getJoinedStudent(session?.students)
+  const coachFeedback    = getLddCoachFeedback(analysis)
+  const executiveSummary = getExecutiveSummary(analysis)
+  const practiceGoal     = getPracticeGoal(analysis)
+  const { strengths, areas } = getReportSummary(analysis)
+  const coaching = analysis.transcript_coaching ?? []
 
   return (
     <div className="max-w-4xl space-y-8">
@@ -148,13 +210,41 @@ export default function ReportPage() {
         </div>
       )}
 
-      {/* LDD Coach feedback — short actionable summary for participants */}
-      {coachFeedback.length > 0 && (
-        <div className="bg-brand-50 dark:bg-brand-950/30 rounded-xl border border-brand-200 dark:border-brand-800 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <MessageSquare className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">LDD Coach feedback</h2>
+      {/* First-page summary */}
+      <div className="bg-brand-50 dark:bg-brand-950/30 rounded-xl border border-brand-200 dark:border-brand-800 p-6 space-y-5">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Coach summary</h2>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-lg bg-white/80 dark:bg-gray-900/60 border border-brand-100 dark:border-brand-900 p-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Overall</p>
+            <p className="text-xl font-bold text-brand-700 dark:text-brand-400">
+              {Math.round(Number(analysis.overall_score))}
+            </p>
           </div>
+          <div className="rounded-lg bg-white/80 dark:bg-gray-900/60 border border-brand-100 dark:border-brand-900 p-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Content</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">
+              {Math.round(Number(analysis.content_score))}
+            </p>
+          </div>
+          <div className="rounded-lg bg-white/80 dark:bg-gray-900/60 border border-brand-100 dark:border-brand-900 p-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Delivery</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">
+              {Math.round(Number(analysis.delivery_score))}
+            </p>
+          </div>
+        </div>
+
+        {executiveSummary && (
+          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+            {executiveSummary}
+          </p>
+        )}
+
+        {coachFeedback.length > 0 && (
           <ul className="space-y-3">
             {coachFeedback.map((point, i) => (
               <li key={i} className="flex gap-3 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
@@ -163,9 +253,107 @@ export default function ReportPage() {
               </li>
             ))}
           </ul>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-4 pt-4 border-t border-brand-200 dark:border-brand-800">
-            Download the PDF for full strengths, detailed coaching, scores, and structure breakdown.
-          </p>
+        )}
+
+        {practiceGoal && (
+          <div className="flex gap-3 rounded-lg bg-white/70 dark:bg-gray-900/50 border border-brand-100 dark:border-brand-900 p-4">
+            <Target className="w-5 h-5 text-brand-600 dark:text-brand-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-400 mb-1">
+                Next practice goal
+              </p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{practiceGoal}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Strengths then improvements */}
+      {(strengths.length > 0 || areas.length > 0) && (
+        <div className="grid md:grid-cols-2 gap-4">
+          {strengths.length > 0 && (
+            <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Strengths</h2>
+              </div>
+              <ul className="space-y-4">
+                {strengths.map((item, i) => (
+                  <li key={i}>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{item.title}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">{item.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {areas.length > 0 && (
+            <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-amber-600" />
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Priority improvements</h2>
+              </div>
+              <ul className="space-y-4">
+                {areas.map((item, i) => (
+                  <li key={i}>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{item.title}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">{item.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Full content feedback */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Content coaching</h2>
+        <div className="space-y-3">
+          {CONTENT_DIMENSIONS.map((dim) => (
+            <DimensionCard key={dim.key} dim={dim} analysis={analysis} />
+          ))}
+        </div>
+      </div>
+
+      {/* Full delivery feedback — pace, pauses, volume emphasised */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Mic2 className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Delivery coaching</h2>
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+          Pace, pauses and breathing, and volume — with where to slow down, when to breathe, and how loud to project.
+        </p>
+        <div className="space-y-3">
+          {DELIVERY_DIMENSIONS.map((dim) => (
+            <DimensionCard key={dim.key} dim={dim} analysis={analysis} />
+          ))}
+        </div>
+      </div>
+
+      {/* Transcript coaching rewrites */}
+      {coaching.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Line-by-line coaching</h2>
+          <div className="space-y-3">
+            {coaching.map((item, i) => (
+              <div
+                key={i}
+                className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 space-y-2"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  What you said
+                </p>
+                <p className="text-sm text-gray-700 dark:text-gray-300 italic">&ldquo;{item.what_you_said}&rdquo;</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-400 pt-1">
+                  Try this instead
+                </p>
+                <p className="text-sm text-gray-900 dark:text-white">&ldquo;{item.suggested_version}&rdquo;</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{item.why_better}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

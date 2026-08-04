@@ -6,7 +6,11 @@ import {
   reportPdfFilename,
   type ReportPdfData,
 } from '@/lib/report/generateReportPdf'
-import { getLddCoachFeedback } from '@/lib/report/coachFeedback'
+import {
+  getExecutiveSummary,
+  getLddCoachFeedback,
+  getPracticeGoal,
+} from '@/lib/report/coachFeedback'
 import { formatDate } from '@/lib/utils'
 import type { Analysis } from '@/types'
 
@@ -51,6 +55,8 @@ export async function GET(
       overall:     Math.round(Number(typedAnalysis.overall_score)),
       content:     Math.round(Number(typedAnalysis.content_score)),
       delivery:    Math.round(Number(typedAnalysis.delivery_score)),
+      executiveSummary: getExecutiveSummary(typedAnalysis),
+      practiceGoal: getPracticeGoal(typedAnalysis),
       coachFeedback: getLddCoachFeedback(typedAnalysis),
       strengths,
       areas,

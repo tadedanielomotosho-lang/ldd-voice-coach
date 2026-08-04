@@ -1,6 +1,6 @@
 import type { Analysis, CoachingItem, FeedbackItem, LDDFrameworkResult } from '@/types'
 
-type RawAnalysis = Partial<LDDFrameworkResult & { ldd_coach_feedback?: string[] }>
+type RawAnalysis = Partial<LDDFrameworkResult>
 
 function firstSentence(text: string): string {
   const trimmed = text.trim()
@@ -11,23 +11,35 @@ function firstSentence(text: string): string {
 function buildFallbackCoachFeedback(
   strengths: FeedbackItem[],
   areas: FeedbackItem[],
-  coaching: CoachingItem[]
+  coaching: CoachingItem[],
+  deliveryNotes: { pace?: string | null; pauses?: string | null; volume?: string | null },
+  practiceGoal?: string | null
 ): string[] {
   const points: string[] = []
 
   if (strengths.length) {
     points.push(
-      `Build on your strength in ${strengths[0].title.toLowerCase()}: ${firstSentence(strengths[0].detail)}`
+      `Keep building on ${strengths[0].title.toLowerCase()}: ${firstSentence(strengths[0].detail)}`
     )
   }
 
-  for (const area of areas.slice(0, 3)) {
+  for (const area of areas.slice(0, 2)) {
     points.push(
       `Priority focus — ${area.title}: ${firstSentence(area.detail)}`
     )
   }
 
-  if (coaching[0]) {
+  const delivery =
+    deliveryNotes.pauses ||
+    deliveryNotes.pace ||
+    deliveryNotes.volume
+  if (delivery) {
+    points.push(`Delivery cue: ${firstSentence(delivery)}`)
+  }
+
+  if (practiceGoal) {
+    points.push(`Next practice goal: ${firstSentence(practiceGoal)}`)
+  } else if (coaching[0]) {
     const quote = coaching[0].what_you_said
     points.push(
       `Try saying "${coaching[0].suggested_version}" instead of "${quote.slice(0, 60)}${quote.length > 60 ? '…' : ''}"`
@@ -35,7 +47,9 @@ function buildFallbackCoachFeedback(
   }
 
   if (points.length === 0) {
-    points.push('Review your recording and practice opening with a clear hook and purpose statement.')
+    points.push(
+      'Review your recording and practise opening with a clear hook, then pause and breathe before each key point.'
+    )
   }
 
   return points.slice(0, 5)
@@ -51,5 +65,27 @@ export function getLddCoachFeedback(analysis: Analysis): string[] {
   const areas     = analysis.areas_for_improvement ?? raw?.areas_for_improvement ?? []
   const coaching  = analysis.transcript_coaching ?? []
 
-  return buildFallbackCoachFeedback(strengths, areas, coaching)
+  return buildFallbackCoachFeedback(
+    strengths,
+    areas,
+    coaching,
+    {
+      pace:   analysis.pace_feedback,
+      pauses: analysis.pause_feedback,
+      volume: analysis.volume_feedback,
+    },
+    raw?.practice_goal
+  )
+}
+
+export function getExecutiveSummary(analysis: Analysis): string | null {
+  const raw = analysis.raw_ai_response as RawAnalysis | null
+  const summary = raw?.executive_summary?.trim()
+  return summary || null
+}
+
+export function getPracticeGoal(analysis: Analysis): string | null {
+  const raw = analysis.raw_ai_response as RawAnalysis | null
+  const goal = raw?.practice_goal?.trim()
+  return goal || null
 }

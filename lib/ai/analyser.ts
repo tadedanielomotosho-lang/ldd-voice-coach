@@ -1,28 +1,32 @@
 import OpenAI from 'openai'
 import { LDDFrameworkSchema, type LDDFrameworkResult } from './types'
-import { buildAnalysisPrompt } from './prompt'
+import { buildAnalysisPrompt, type PriorAttemptContext } from './prompt'
 
-const openai = new OpenAI({
-  apiKey:     process.env.OPENAI_API_KEY,
-  timeout:    90_000,
-  maxRetries: 2,
-})
+function getOpenAI() {
+  return new OpenAI({
+    apiKey:     process.env.OPENAI_API_KEY,
+    timeout:    120_000,
+    maxRetries: 2,
+  })
+}
 
 export async function analysePresentation(
   transcript: string,
-  topic:      string
+  topic:      string,
+  prior?:     PriorAttemptContext | null
 ): Promise<LDDFrameworkResult> {
-  const prompt = buildAnalysisPrompt(transcript, topic)
+  const prompt = buildAnalysisPrompt(transcript, topic, prior)
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model:           'gpt-4o-mini',
-    temperature:     0.1,
-    max_tokens:      1400,
+    temperature:     0.2,
+    max_tokens:      3600,
     response_format: { type: 'json_object' },
     messages: [
       {
         role:    'system',
-        content: 'You are an expert communication coach. Always respond with valid JSON only.',
+        content:
+          'You are an expert LDD communication coach. Follow the scoring rubric exactly. Always respond with valid JSON only. Use correct grammar. Be specific, balanced, actionable, prioritised, encouraging, consistent, and progress-oriented.',
       },
       {
         role:    'user',
