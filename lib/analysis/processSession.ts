@@ -39,7 +39,7 @@ async function runAnalysis(
   const analysis   = await analysePresentation(transcript, session.presentation_topic, prior)
   const scores     = calculateScores(analysis)
 
-  const { error: insertErr } = await service.from('analyses').insert({
+  const analysisRow = {
     session_id:          sessionId,
     student_id:          session.student_id,
     tutor_id:            session.tutor_id,
@@ -69,7 +69,15 @@ async function runAnalysis(
     volume_feedback:     analysis.volume.feedback,
     transcript_coaching: analysis.transcript_coaching,
     raw_ai_response:     analysis,
-  })
+  }
+
+  let { error: insertErr } = await service.from('analyses').insert(analysisRow)
+
+  // Production may not have migration 004 yet — justification still lives in raw_ai_response.
+  if (insertErr?.message?.includes('overall_justification')) {
+    const { overall_justification: _omit, ...withoutJustificationColumn } = analysisRow
+    ;({ error: insertErr } = await service.from('analyses').insert(withoutJustificationColumn))
+  }
 
   if (insertErr) throw new Error(`Failed to save analysis: ${insertErr.message}`)
 
