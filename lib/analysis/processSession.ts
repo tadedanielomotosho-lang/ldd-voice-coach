@@ -4,6 +4,8 @@ import { analysePresentation } from '@/lib/ai/analyser'
 import { calculateScores } from '@/lib/ai/scorer'
 import { downloadSessionAudio } from '@/lib/analysis/downloadAudio'
 import { fetchPriorAttempt } from '@/lib/analysis/priorAttempt'
+import { insertAnalysisRow } from '@/lib/analysis/insertAnalysis'
+import { estimateDurationFromWords } from '@/lib/analysis/duration'
 
 export type CachedAudio = {
   buffer:   Buffer
@@ -29,6 +31,7 @@ async function runAnalysis(
     presentation_topic: string
     audio_mime_type: string | null
     audio_storage_path: string
+    audio_duration_seconds: number | null
   },
   audio: CachedAudio,
   jobId?: string
@@ -36,50 +39,67 @@ async function runAnalysis(
   const transcript = await transcribeAudio(audio.buffer, audio.mimeType, audio.filename)
   const wordCount  = countWords(transcript)
   const prior      = await fetchPriorAttempt(service, session.student_id, sessionId)
-  const analysis   = await analysePresentation(transcript, session.presentation_topic, prior)
-  const scores     = calculateScores(analysis)
 
-  const analysisRow = {
-    session_id:          sessionId,
-    student_id:          session.student_id,
-    tutor_id:            session.tutor_id,
+  const measured = session.audio_duration_seconds && session.audio_duration_seconds > 0
+    ? Number(session.audio_duration_seconds)
+    : null
+  const durationEstimated = measured == null
+  const durationSeconds = measured ?? (estimateDurationFromWords(wordCount) || null)
+
+  const analysis = await analysePresentation(
     transcript,
-    word_count:          wordCount,
-    content_score:       scores.content_score,
-    hook_score:          analysis.hook.score,
-    purpose_score:       analysis.purpose.score,
-    key_points_score:    analysis.key_points.score,
-    cta_score:           analysis.cta.score,
-    clarity_score:       analysis.clarity.score,
-    delivery_score:      scores.delivery_score,
-    tone_score:          analysis.tone.score,
-    pace_score:          analysis.pace.score,
-    pause_score:         analysis.pauses.score,
-    volume_score:        analysis.volume.score,
-    overall_score:       scores.overall_score,
+    session.presentation_topic,
+    prior,
+    {
+      durationSeconds,
+      durationEstimated,
+      wordCount,
+    }
+  )
+  const scores = calculateScores(analysis)
+
+  if (durationEstimated && durationSeconds) {
+    await service
+      .from('sessions')
+      .update({ audio_duration_seconds: durationSeconds })
+      .eq('id', sessionId)
+  }
+
+  await insertAnalysisRow(service, {
+    session_id:            sessionId,
+    student_id:            session.student_id,
+    tutor_id:              session.tutor_id,
+    transcript,
+    word_count:            wordCount,
+    content_score:         scores.content_score,
+    hook_score:            analysis.hook.score,
+    purpose_score:         analysis.purpose.score,
+    key_points_score:      analysis.key_points.score,
+    richness_score:        analysis.richness.score,
+    cta_score:             analysis.cta.score,
+    clarity_score:         analysis.clarity.score,
+    delivery_score:        scores.delivery_score,
+    tone_score:            analysis.tone.score,
+    pace_score:            analysis.pace.score,
+    pause_score:           analysis.pauses.score,
+    volume_score:          analysis.volume.score,
+    duration_score:        analysis.duration.score,
+    overall_score:         scores.overall_score,
     overall_justification: analysis.overall_justification,
-    hook_feedback:       analysis.hook.feedback,
-    purpose_feedback:    analysis.purpose.feedback,
-    key_points_feedback: analysis.key_points.feedback,
-    cta_feedback:        analysis.cta.feedback,
-    clarity_feedback:    analysis.clarity.feedback,
-    tone_feedback:       analysis.tone.feedback,
-    pace_feedback:       analysis.pace.feedback,
-    pause_feedback:      analysis.pauses.feedback,
-    volume_feedback:     analysis.volume.feedback,
-    transcript_coaching: analysis.transcript_coaching,
-    raw_ai_response:     analysis,
-  }
-
-  let { error: insertErr } = await service.from('analyses').insert(analysisRow)
-
-  // Production may not have migration 004 yet — justification still lives in raw_ai_response.
-  if (insertErr?.message?.includes('overall_justification')) {
-    const { overall_justification: _omit, ...withoutJustificationColumn } = analysisRow
-    ;({ error: insertErr } = await service.from('analyses').insert(withoutJustificationColumn))
-  }
-
-  if (insertErr) throw new Error(`Failed to save analysis: ${insertErr.message}`)
+    hook_feedback:         analysis.hook.feedback,
+    purpose_feedback:      analysis.purpose.feedback,
+    key_points_feedback:   analysis.key_points.feedback,
+    richness_feedback:     analysis.richness.feedback,
+    cta_feedback:          analysis.cta.feedback,
+    clarity_feedback:      analysis.clarity.feedback,
+    tone_feedback:         analysis.tone.feedback,
+    pace_feedback:         analysis.pace.feedback,
+    pause_feedback:        analysis.pauses.feedback,
+    volume_feedback:       analysis.volume.feedback,
+    duration_feedback:     analysis.duration.feedback,
+    transcript_coaching:   analysis.transcript_coaching,
+    raw_ai_response:       analysis,
+  })
 
   await service.from('sessions').update({ status: 'done' }).eq('id', sessionId)
 

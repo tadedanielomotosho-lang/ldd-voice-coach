@@ -34,7 +34,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Audio file exceeds 25MB limit' }, { status: 400 })
     }
 
-    const { student_id, student_name, session_name, presentation_topic } = parsed.data
+    const {
+      student_id,
+      student_name,
+      session_name,
+      presentation_topic,
+      audio_duration_seconds,
+    } = parsed.data
 
     let resolvedStudentId = student_id
     let resolvedStudentName = student_name?.trim() ?? ''
@@ -115,6 +121,7 @@ export async function POST(request: NextRequest) {
         presentation_topic:   resolvedTopic,
         audio_storage_path:   storagePath,
         audio_mime_type:      contentType,
+        audio_duration_seconds: audio_duration_seconds ?? null,
         status:               'pending',
         recorded_at:          new Date().toISOString(),
       })

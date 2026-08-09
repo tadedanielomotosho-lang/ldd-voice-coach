@@ -14,6 +14,7 @@ import {
   getPracticeGoal,
 } from '@/lib/report/coachFeedback'
 import { formatDate } from '@/lib/utils'
+import { estimateDurationFromWords } from '@/lib/analysis/duration'
 import type { Analysis } from '@/types'
 
 export async function GET(
@@ -31,7 +32,7 @@ export async function GET(
       .select(`
         *,
         sessions(
-          id, session_name, presentation_topic, created_at,
+          id, session_name, presentation_topic, created_at, audio_duration_seconds,
           students(id, name)
         )
       `)
@@ -47,6 +48,13 @@ export async function GET(
     const student = session?.students as { name: string } | null
     const typedAnalysis = analysis as Analysis
     const { strengths, areas } = getReportSummary(typedAnalysis)
+    const measuredDuration = session?.audio_duration_seconds != null
+      ? Number(session.audio_duration_seconds)
+      : null
+    const durationSeconds =
+      measuredDuration && measuredDuration > 0
+        ? measuredDuration
+        : estimateDurationFromWords(typedAnalysis.word_count) || null
 
     const pdfData: ReportPdfData = {
       sessionName: String(session?.session_name || 'Session'),
@@ -54,6 +62,7 @@ export async function GET(
       topic:       String(session?.presentation_topic || ''),
       date:        formatDate(String(session?.created_at || '')),
       wordCount:   typedAnalysis.word_count,
+      durationSeconds,
       overall:     Math.round(Number(typedAnalysis.overall_score)),
       content:     Math.round(Number(typedAnalysis.content_score)),
       delivery:    Math.round(Number(typedAnalysis.delivery_score)),

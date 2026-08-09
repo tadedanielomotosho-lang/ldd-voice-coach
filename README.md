@@ -113,26 +113,28 @@ Set all environment variables in Vercel dashboard → **Settings → Environment
 ### Content (100 pts)
 | Dimension | Points |
 |-----------|--------|
-| Hook | 20 |
-| Purpose statement | 15 |
-| Key point structure | 30 |
-| Call to action | 15 |
-| Message clarity | 20 |
+| Hook | 15 |
+| Purpose statement | 12 |
+| Key point structure | 25 |
+| Content richness | 20 |
+| Call to action | 13 |
+| Message clarity | 15 |
 
 ### Delivery (100 pts)
 | Dimension | Points |
 |-----------|--------|
-| Tone variation | 25 |
-| Pace | 25 |
-| Pauses & breathing | 25 |
-| Volume | 25 |
+| Tone variation | 20 |
+| Pace | 20 |
+| Pauses & breathing | 20 |
+| Volume | 20 |
+| Speaking duration | 20 |
 
 ### Overall Score Formula
 ```
 overall = (content_score × 0.6) + (delivery_score × 0.4)
 ```
 
-Each grade also stores an **overall justification** (2–4 sentences) explaining why the weighted blend landed where it did — strongest drivers, gaps that held the score back, and whether Content or Delivery lifted/dragged the overall. It appears under the overall score on the PDF report.
+Each grade also stores an **overall justification** (2–4 sentences) explaining why the weighted blend landed where it did — strongest drivers (including content richness and speaking duration when material), gaps that held the score back, and whether Content or Delivery lifted/dragged the overall. It appears under the overall score on the PDF report. Speaking time is captured from the audio (or estimated from word count) and shown on the PDF as **TIME**.
 
 ### Coaching feedback standards
 Every analysis follows the same coaching rubric:

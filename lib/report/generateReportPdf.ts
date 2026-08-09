@@ -15,6 +15,7 @@ export type ReportPdfData = {
   topic: string
   date: string
   wordCount: number
+  durationSeconds: number | null
   overall: number
   content: number
   delivery: number
@@ -145,8 +146,17 @@ export function buildReportPdfBytes(data: ReportPdfData): Uint8Array {
   }
 
   const writeDimensionBlock = (dim: ScoreDimension) => {
-    const score = Math.round(Number(data.analysis[dim.key] ?? 0))
-    const feedback = String(data.analysis[dim.fbKey] ?? '')
+    const raw = data.analysis.raw_ai_response as Partial<LDDFrameworkResult> | null
+    const rawKey =
+      dim.key === 'pause_score' ? 'pauses'
+        : dim.key === 'richness_score' ? 'richness'
+          : dim.key === 'duration_score' ? 'duration'
+            : dim.key.replace(/_score$/, '')
+    const rawDim = raw?.[rawKey as keyof LDDFrameworkResult] as
+      | { score?: number; feedback?: string }
+      | undefined
+    const score = Math.round(Number(data.analysis[dim.key] ?? rawDim?.score ?? 0))
+    const feedback = String(data.analysis[dim.fbKey] ?? rawDim?.feedback ?? '')
     if (!feedback && !score) return
 
     const feedbackLines = feedback
@@ -214,11 +224,16 @@ export function buildReportPdfBytes(data: ReportPdfData): Uint8Array {
   // ── Score overview (PDF only) ─────────────────────────────
   sectionTitle('Score overview')
   const cardY = y
-  const cardW = (contentWidth - 9) / 4
+  const cardW = (contentWidth - 12) / 5
+  const durationLabel =
+    data.durationSeconds && data.durationSeconds > 0
+      ? `${Math.floor(data.durationSeconds / 60)}:${String(data.durationSeconds % 60).padStart(2, '0')}`
+      : '—'
   drawScoreCard('OVERALL', String(data.overall), margin, cardY, cardW)
   drawScoreCard('CONTENT', String(data.content), margin + cardW + 3, cardY, cardW)
   drawScoreCard('DELIVERY', String(data.delivery), margin + 2 * (cardW + 3), cardY, cardW)
   drawScoreCard('WORDS', String(data.wordCount), margin + 3 * (cardW + 3), cardY, cardW)
+  drawScoreCard('TIME', durationLabel, margin + 4 * (cardW + 3), cardY, cardW)
   y = cardY + 20
 
   // Justification under overall score
@@ -319,7 +334,7 @@ export function buildReportPdfBytes(data: ReportPdfData): Uint8Array {
   // ── Delivery coaching with scores ─────────────────────────
   sectionTitle('Delivery coaching')
   writeWrapped(
-    'Pace, pauses and breathing, and volume — with where to slow down, when to breathe, and how loud to project.',
+    'Pace, pauses and breathing, volume, and speaking duration — with where to slow down, when to breathe, how loud to project, and whether the talk was long enough to develop the message.',
     8,
     { color: MUTED }
   )

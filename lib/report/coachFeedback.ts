@@ -94,18 +94,29 @@ function buildFallbackOverallJustification(analysis: Analysis): string | null {
   const delivery = Number(analysis.delivery_score)
   if (!Number.isFinite(content) || !Number.isFinite(delivery)) return null
 
+  const raw = analysis.raw_ai_response as RawAnalysis | null
   const contentDims = [
-    { name: 'hook', score: Number(analysis.hook_score), max: 20 },
-    { name: 'purpose', score: Number(analysis.purpose_score), max: 15 },
-    { name: 'key points', score: Number(analysis.key_points_score), max: 30 },
-    { name: 'call to action', score: Number(analysis.cta_score), max: 15 },
-    { name: 'clarity', score: Number(analysis.clarity_score), max: 20 },
+    { name: 'hook', score: Number(analysis.hook_score), max: 15 },
+    { name: 'purpose', score: Number(analysis.purpose_score), max: 12 },
+    { name: 'key points', score: Number(analysis.key_points_score), max: 25 },
+    {
+      name: 'richness',
+      score: Number(analysis.richness_score ?? raw?.richness?.score ?? 0),
+      max: 20,
+    },
+    { name: 'call to action', score: Number(analysis.cta_score), max: 13 },
+    { name: 'clarity', score: Number(analysis.clarity_score), max: 15 },
   ]
   const deliveryDims = [
-    { name: 'tone', score: Number(analysis.tone_score), max: 25 },
-    { name: 'pace', score: Number(analysis.pace_score), max: 25 },
-    { name: 'pauses', score: Number(analysis.pause_score), max: 25 },
-    { name: 'volume', score: Number(analysis.volume_score), max: 25 },
+    { name: 'tone', score: Number(analysis.tone_score), max: 20 },
+    { name: 'pace', score: Number(analysis.pace_score), max: 20 },
+    { name: 'pauses', score: Number(analysis.pause_score), max: 20 },
+    { name: 'volume', score: Number(analysis.volume_score), max: 20 },
+    {
+      name: 'duration',
+      score: Number(analysis.duration_score ?? raw?.duration?.score ?? 0),
+      max: 20,
+    },
   ]
 
   const byStrength = (a: { score: number; max: number }, b: { score: number; max: number }) =>

@@ -78,6 +78,7 @@ export interface Analysis {
   hook_score: number
   purpose_score: number
   key_points_score: number
+  richness_score?: number | null
   cta_score: number
   clarity_score: number
   // Delivery
@@ -86,6 +87,7 @@ export interface Analysis {
   pace_score: number
   pause_score: number
   volume_score: number
+  duration_score?: number | null
   // Overall
   overall_score: number
   overall_justification: string | null
@@ -93,12 +95,14 @@ export interface Analysis {
   hook_feedback: string | null
   purpose_feedback: string | null
   key_points_feedback: string | null
+  richness_feedback?: string | null
   cta_feedback: string | null
   clarity_feedback: string | null
   tone_feedback: string | null
   pace_feedback: string | null
   pause_feedback: string | null
   volume_feedback: string | null
+  duration_feedback?: string | null
   // Coaching
   transcript_coaching: CoachingItem[]
   strengths?: FeedbackItem[]
@@ -113,12 +117,14 @@ export interface LDDFrameworkResult {
   hook:        { score: number; feedback: string }
   purpose:     { score: number; feedback: string }
   key_points:  { score: number; feedback: string }
+  richness:    { score: number; feedback: string }
   cta:         { score: number; feedback: string }
   clarity:     { score: number; feedback: string }
   tone:        { score: number; feedback: string }
   pace:        { score: number; feedback: string }
   pauses:      { score: number; feedback: string }
   volume:      { score: number; feedback: string }
+  duration:    { score: number; feedback: string }
   transcript_coaching: CoachingItem[]
   strengths:             FeedbackItem[]
   areas_for_improvement: FeedbackItem[]
@@ -185,16 +191,18 @@ export interface ScoreDimension {
 }
 
 export const CONTENT_DIMENSIONS: ScoreDimension[] = [
-  { key: 'hook_score',       fbKey: 'hook_feedback',        label: 'Hook',              maxScore: 20, category: 'content',  description: 'Story, question, quote, fact, statistic, or scenario' },
-  { key: 'purpose_score',    fbKey: 'purpose_feedback',     label: 'Purpose statement', maxScore: 15, category: 'content',  description: 'Objective, audience understanding, and purpose clarity' },
-  { key: 'key_points_score', fbKey: 'key_points_feedback',  label: 'Key point structure',maxScore:30, category: 'content',  description: 'Organization, transitions, and logical flow' },
-  { key: 'cta_score',        fbKey: 'cta_feedback',         label: 'Call to action',    maxScore: 15, category: 'content',  description: 'Action, thought, reflection, or next step' },
-  { key: 'clarity_score',    fbKey: 'clarity_feedback',     label: 'Message clarity',   maxScore: 20, category: 'content',  description: 'Grammar, comprehension, and coherence' },
+  { key: 'hook_score',       fbKey: 'hook_feedback',        label: 'Hook',               maxScore: 15, category: 'content',  description: 'Story, question, quote, fact, statistic, or scenario' },
+  { key: 'purpose_score',    fbKey: 'purpose_feedback',     label: 'Purpose statement',  maxScore: 12, category: 'content',  description: 'Objective, audience understanding, and purpose clarity' },
+  { key: 'key_points_score', fbKey: 'key_points_feedback',  label: 'Key point structure', maxScore: 25, category: 'content',  description: 'Organization, transitions, and logical flow' },
+  { key: 'richness_score',   fbKey: 'richness_feedback',    label: 'Content richness',   maxScore: 20, category: 'content',  description: 'Depth, concrete detail, examples, and vivid substance' },
+  { key: 'cta_score',        fbKey: 'cta_feedback',         label: 'Call to action',     maxScore: 13, category: 'content',  description: 'Action, thought, reflection, or next step' },
+  { key: 'clarity_score',    fbKey: 'clarity_feedback',     label: 'Message clarity',    maxScore: 15, category: 'content',  description: 'Grammar, comprehension, and coherence' },
 ]
 
 export const DELIVERY_DIMENSIONS: ScoreDimension[] = [
-  { key: 'tone_score',   fbKey: 'tone_feedback',   label: 'Tone variation', maxScore: 25, category: 'delivery', description: 'Monotone → slightly varied → varied → highly engaging' },
-  { key: 'pace_score',   fbKey: 'pace_feedback',   label: 'Pace',           maxScore: 25, category: 'delivery', description: 'Too slow → ideal → too fast' },
-  { key: 'pause_score',  fbKey: 'pause_feedback',  label: 'Pauses & breathing', maxScore: 25, category: 'delivery', description: 'Insufficient → healthy → excessive pauses' },
-  { key: 'volume_score', fbKey: 'volume_feedback', label: 'Volume',         maxScore: 25, category: 'delivery', description: 'Low → inconsistent → strong projection' },
+  { key: 'tone_score',     fbKey: 'tone_feedback',     label: 'Tone variation',     maxScore: 20, category: 'delivery', description: 'Monotone → slightly varied → varied → highly engaging' },
+  { key: 'pace_score',     fbKey: 'pace_feedback',     label: 'Pace',               maxScore: 20, category: 'delivery', description: 'Too slow → ideal → too fast' },
+  { key: 'pause_score',    fbKey: 'pause_feedback',    label: 'Pauses & breathing', maxScore: 20, category: 'delivery', description: 'Insufficient → healthy → excessive pauses' },
+  { key: 'volume_score',   fbKey: 'volume_feedback',   label: 'Volume',             maxScore: 20, category: 'delivery', description: 'Low → inconsistent → strong projection' },
+  { key: 'duration_score', fbKey: 'duration_feedback', label: 'Speaking duration',  maxScore: 20, category: 'delivery', description: 'Too short / well-timed / too long for the message' },
 ]

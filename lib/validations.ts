@@ -15,6 +15,7 @@ export const CreateSessionSchema = z.object({
   student_name:       z.string().min(2, 'Student name must be at least 2 characters').max(100).optional(),
   session_name:       z.string().min(2).max(200).optional(),
   presentation_topic: z.string().min(2).max(300).optional(),
+  audio_duration_seconds: z.number().int().positive().max(60 * 60).optional(),
 }).refine(data => data.student_id || data.student_name, {
   message: 'Student name is required',
 })

@@ -11,6 +11,7 @@ export function calculateScores(result: LDDFrameworkResult): ScoreBreakdown {
     result.hook.score +
     result.purpose.score +
     result.key_points.score +
+    result.richness.score +
     result.cta.score +
     result.clarity.score
 
@@ -18,7 +19,8 @@ export function calculateScores(result: LDDFrameworkResult): ScoreBreakdown {
     result.tone.score +
     result.pace.score +
     result.pauses.score +
-    result.volume.score
+    result.volume.score +
+    result.duration.score
 
   const overall_score =
     Math.round((content_score * 0.6 + delivery_score * 0.4) * 100) / 100

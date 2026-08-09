@@ -103,7 +103,9 @@ function UploadPageContent() {
     setSubmitting(true)
     setError(null)
     try {
-      const sessionId = await submitRecording(file, trimmed)
+      const durationSeconds =
+        mode === 'record' && recorder.duration > 0 ? recorder.duration : null
+      const sessionId = await submitRecording(file, trimmed, { durationSeconds })
       router.push(`/reports/${sessionId}`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Submission failed'
