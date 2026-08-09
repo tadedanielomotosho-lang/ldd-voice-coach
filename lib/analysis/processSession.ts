@@ -57,6 +57,7 @@ async function runAnalysis(
     pause_score:         analysis.pauses.score,
     volume_score:        analysis.volume.score,
     overall_score:       scores.overall_score,
+    overall_justification: analysis.overall_justification,
     hook_feedback:       analysis.hook.feedback,
     purpose_feedback:    analysis.purpose.feedback,
     key_points_feedback: analysis.key_points.feedback,

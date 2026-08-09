@@ -10,6 +10,7 @@ import {
   getExecutiveSummary,
   getFullRedraft,
   getLddCoachFeedback,
+  getOverallJustification,
   getPracticeGoal,
 } from '@/lib/report/coachFeedback'
 import { formatDate } from '@/lib/utils'
@@ -56,6 +57,7 @@ export async function GET(
       overall:     Math.round(Number(typedAnalysis.overall_score)),
       content:     Math.round(Number(typedAnalysis.content_score)),
       delivery:    Math.round(Number(typedAnalysis.delivery_score)),
+      overallJustification: getOverallJustification(typedAnalysis),
       executiveSummary: getExecutiveSummary(typedAnalysis),
       practiceGoal: getPracticeGoal(typedAnalysis),
       fullRedraft: getFullRedraft(typedAnalysis),

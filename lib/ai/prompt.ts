@@ -97,6 +97,7 @@ OUTPUT FIELD RULES
 - strengths: 2–3 items. title + detail (2–3 sentences, with a quote). No numeric scores.
 - areas_for_improvement: 2–3 items, ordered by impact. title + detail (2–3 sentences: why it matters + what to practise + example). No numeric scores.
 - transcript_coaching: exactly ${coachingCount} items. Prefer grammar fixes, weak openings, unclear CTAs, and rushed delivery moments. Keep quotes short.
+- overall_justification: 2–4 sentences shown directly under the overall score. Justify the overall grade using Overall = Content (60%) + Delivery (40%). Name the 1–2 strongest score drivers and the 1–2 gaps that most held the grade back. Explicitly say whether Content or Delivery lifted or dragged the blend. Honest and encouraging. Do not invent an overall percentage (the system computes it from your dimension scores). No raw numeric scores in this paragraph.
 - executive_summary: 3–5 sentences for the first page. Balanced overview: overall impression, 1–2 standout strengths, top 1–2 priorities (must mention pace OR pauses/breathing OR volume if any delivery gap is material), and the next practice focus. No raw numeric scores in this paragraph.
 - practice_goal: 1–2 sentences. One concrete drill for the next recording (include a delivery cue when delivery is a priority).
 - ldd_coach_feedback: 5 bullets for the first-page summary. Order: (1) encourage with a specific strength + quote, (2–4) prioritised actions (include at least one delivery bullet covering pace, pause/breath, or volume with a when/where cue), (5) practice_goal restated briefly. No numeric scores. ~30–45 words each. Use coach verbs: "Open with…", "Pause after…", "Project…", "Practise…".
@@ -116,6 +117,7 @@ JSON schema:
   "strengths": [{ "title": "...", "detail": "..." }],
   "areas_for_improvement": [{ "title": "...", "detail": "..." }],
   "transcript_coaching": [{ "what_you_said": "...", "suggested_version": "...", "why_better": "..." }],
+  "overall_justification": "...",
   "executive_summary": "...",
   "practice_goal": "...",
   "ldd_coach_feedback": ["...", "...", "...", "...", "..."],

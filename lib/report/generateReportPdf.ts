@@ -3,6 +3,7 @@ import {
   getExecutiveSummary,
   getFullRedraft,
   getLddCoachFeedback,
+  getOverallJustification,
   getPracticeGoal,
 } from '@/lib/report/coachFeedback'
 import type { Analysis, CoachingItem, FeedbackItem, LDDFrameworkResult } from '@/types'
@@ -17,6 +18,7 @@ export type ReportPdfData = {
   overall: number
   content: number
   delivery: number
+  overallJustification: string | null
   executiveSummary: string | null
   practiceGoal: string | null
   fullRedraft: string | null
@@ -218,6 +220,16 @@ export function buildReportPdfBytes(data: ReportPdfData): Uint8Array {
   drawScoreCard('DELIVERY', String(data.delivery), margin + 2 * (cardW + 3), cardY, cardW)
   drawScoreCard('WORDS', String(data.wordCount), margin + 3 * (cardW + 3), cardY, cardW)
   y = cardY + 20
+
+  // Justification under overall score
+  if (data.overallJustification) {
+    y += 2
+    ensureSpace(18)
+    writeWrapped('Grade justification', 8, { bold: true, color: MUTED })
+    y += 1
+    writeWrapped(data.overallJustification, 8.5)
+    y += 2
+  }
 
   // Mini bars for overall/content/delivery
   writeWrapped('Performance gauges', 8, { bold: true, color: MUTED })
@@ -438,6 +450,7 @@ export function reportPdfFilename(sessionName: string): string {
 export function buildCoachMeta(analysis: Analysis) {
   return {
     coachFeedback: getLddCoachFeedback(analysis),
+    overallJustification: getOverallJustification(analysis),
     executiveSummary: getExecutiveSummary(analysis),
     practiceGoal: getPracticeGoal(analysis),
     fullRedraft: getFullRedraft(analysis),

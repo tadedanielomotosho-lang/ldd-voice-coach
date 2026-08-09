@@ -88,6 +88,7 @@ export interface Analysis {
   volume_score: number
   // Overall
   overall_score: number
+  overall_justification: string | null
   // Feedback
   hook_feedback: string | null
   purpose_feedback: string | null
@@ -121,6 +122,7 @@ export interface LDDFrameworkResult {
   transcript_coaching: CoachingItem[]
   strengths:             FeedbackItem[]
   areas_for_improvement: FeedbackItem[]
+  overall_justification: string
   executive_summary:     string
   practice_goal:         string
   ldd_coach_feedback:    string[]

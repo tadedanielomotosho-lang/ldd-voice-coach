@@ -132,6 +132,8 @@ Set all environment variables in Vercel dashboard → **Settings → Environment
 overall = (content_score × 0.6) + (delivery_score × 0.4)
 ```
 
+Each grade also stores an **overall justification** (2–4 sentences) explaining why the weighted blend landed where it did — strongest drivers, gaps that held the score back, and whether Content or Delivery lifted/dragged the overall. It appears under the overall score on the PDF report.
+
 ### Coaching feedback standards
 Every analysis follows the same coaching rubric:
 1. **Specific** — cite short transcript quotes and tie them to each criterion

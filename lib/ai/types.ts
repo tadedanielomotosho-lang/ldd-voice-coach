@@ -30,6 +30,7 @@ export const LDDFrameworkSchema = z.object({
   strengths:              z.array(FeedbackItemSchema).min(1).max(6),
   areas_for_improvement:  z.array(FeedbackItemSchema).min(1).max(6),
   transcript_coaching:    z.array(CoachingItemSchema).min(0).max(15),
+  overall_justification:  z.string().min(40),
   executive_summary:      z.string().min(40),
   practice_goal:          z.string().min(16),
   ldd_coach_feedback:     z.array(z.string().min(16)).min(3).max(6),
