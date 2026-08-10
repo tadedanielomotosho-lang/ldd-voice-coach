@@ -140,7 +140,14 @@ OUTPUT FIELD RULES
 - executive_summary: 3–5 sentences for the first page. Balanced overview: overall impression, 1–2 standout strengths (include richness when it is a strength), top 1–2 priorities (mention duration when timing is a material gap; otherwise pace/pauses/volume), and the next practice focus. No raw numeric scores in this paragraph.
 - practice_goal: 1–2 sentences. One concrete drill for the next recording (include a delivery or duration cue when that is a priority).
 - ldd_coach_feedback: 5 bullets for the first-page summary. Order: (1) encourage with a specific strength + quote, (2–4) prioritised actions (include at least one delivery bullet covering pace, pause/breath, volume, or duration), (5) practice_goal restated briefly. No numeric scores. ~30–45 words each. Use coach verbs: "Open with…", "Pause after…", "Project…", "Practise…", "Expand…".
-- full_redraft: A complete polished rewrite of the whole presentation the participant can practise aloud. Keep the same core message. If the original was thin, enrich detail while staying speakable (about 1–2 minutes). Improve hook, purpose, structure, richness, clarity/grammar, CTA, and natural spoken rhythm (mark short pause points with … or [pause] where helpful). Write it as a ready-to-deliver script matching the original speaker voice.
+- full_redraft: A complete polished rewrite the participant can practise aloud. MUST implement every material coaching suggestion from this analysis in the script itself:
+  (1) apply ALL transcript_coaching replacements,
+  (2) apply ALL areas_for_improvement (hook/purpose/transitions/CTA/etc.),
+  (3) upgrade content richness with concrete detail, examples, sensory language, or facts wherever the original was thin,
+  (4) insert [pause] markers where pauses/breathing coaching asked for them,
+  (5) keep the same core message and speaker voice; aim for about 1–2 minutes of speakable length.
+  HIGHLIGHTING RULE (required): Wrap every phrase that is NEW or SUBSTANTIALLY CHANGED versus the original transcript in double square brackets like [[this new or revised phrase]]. Leave unchanged connective wording unmarked. Do not wrap the entire script — only the changed/added parts. [pause] markers stay as [pause] (not inside [[ ]]).
+- redraft_changes: 4–8 items that catalogue the highlights for the reader. Each item: label (short name of the change), from (original quote, or "" if pure addition), to (the new phrase WITHOUT [[ ]] brackets), applied_suggestion (which coaching point it fulfils — e.g. richer oasis detail, stronger CTA, grammar fix). Cover richness upgrades and every major suggestion you applied.
 
 JSON schema:
 {
@@ -162,6 +169,7 @@ JSON schema:
   "executive_summary": "...",
   "practice_goal": "...",
   "ldd_coach_feedback": ["...", "...", "...", "...", "..."],
-  "full_redraft": "..."
+  "full_redraft": "...sentence with [[highlighted new or changed phrase]] and [pause] markers...",
+  "redraft_changes": [{ "label": "...", "from": "...", "to": "...", "applied_suggestion": "..." }]
 }`
 }

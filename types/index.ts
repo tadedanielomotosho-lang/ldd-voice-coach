@@ -132,7 +132,13 @@ export interface LDDFrameworkResult {
   executive_summary:     string
   practice_goal:         string
   ldd_coach_feedback:    string[]
-  full_redraft?:         string
+  full_redraft:          string
+  redraft_changes:       Array<{
+    label: string
+    from: string
+    to: string
+    applied_suggestion: string
+  }>
 }
 
 export interface ScoreBreakdown {

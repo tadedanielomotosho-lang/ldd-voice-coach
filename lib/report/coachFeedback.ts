@@ -165,9 +165,9 @@ export function getFullRedraft(analysis: Analysis): string | null {
   const coaching = analysis.transcript_coaching ?? []
   if (coaching.length === 0) return null
 
-  // Fallback for older analyses: stitch suggested lines into a practice script
+  // Fallback for older analyses: stitch suggested lines and mark them as changes
   return coaching
-    .map((item) => item.suggested_version.trim())
-    .filter(Boolean)
+    .map((item) => `[[${item.suggested_version.trim()}]]`)
+    .filter((line) => line.length > 4)
     .join(' ')
 }

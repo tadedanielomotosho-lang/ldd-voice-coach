@@ -150,6 +150,8 @@ Delivery notes always cover **where pace is too fast/slow**, **when to pause and
 
 The report opens with a **Coach summary** (executive overview, prioritised bullets, practice goal). Full content, delivery, and line-by-line coaching follow below; the PDF includes the same structure.
 
+The **full redraft** applies every major coaching suggestion (richer detail, stronger hook/CTA, grammar fixes, structure, pause cues). Changed or added phrases are wrapped in `[[...]]` and shown as bold green underlined highlights in the PDF and on the report page, with an OLD → NEW change list.
+
 ---
 
 ## Architecture

@@ -13,6 +13,7 @@ import {
   getOverallJustification,
   getPracticeGoal,
 } from '@/lib/report/coachFeedback'
+import { getRedraftChanges } from '@/lib/report/redraft'
 import { formatDate } from '@/lib/utils'
 import { estimateDurationFromWords } from '@/lib/analysis/duration'
 import type { Analysis } from '@/types'
@@ -70,6 +71,7 @@ export async function GET(
       executiveSummary: getExecutiveSummary(typedAnalysis),
       practiceGoal: getPracticeGoal(typedAnalysis),
       fullRedraft: getFullRedraft(typedAnalysis),
+      redraftChanges: getRedraftChanges(typedAnalysis),
       coachFeedback: getLddCoachFeedback(typedAnalysis),
       strengths,
       areas,

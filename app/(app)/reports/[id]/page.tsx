@@ -13,6 +13,7 @@ import {
 import DownloadReportPdfButton from '@/components/DownloadReportPdfButton'
 import DeleteSessionButton from '@/components/DeleteSessionButton'
 import RetryAnalysisButton from '@/components/RetryAnalysisButton'
+import HighlightedRedraft from '@/components/HighlightedRedraft'
 import { useRealtimeSession } from '@/lib/hooks/useRealtimeSession'
 import {
   getExecutiveSummary,
@@ -175,7 +176,7 @@ export default function ReportPage() {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Coach summary</h2>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Scores, detailed coaching, transcript, and redraft are in the downloaded PDF only.
+          Scores and detailed dimension coaching are in the downloaded PDF. The improved script with highlighted changes is shown below.
         </p>
 
         {executiveSummary && (
@@ -245,6 +246,8 @@ export default function ReportPage() {
           )}
         </div>
       )}
+
+      <HighlightedRedraft analysis={analysis} />
     </div>
   )
 }

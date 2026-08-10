@@ -11,6 +11,13 @@ export const FeedbackItemSchema = z.object({
   detail: z.string().min(20),
 })
 
+export const RedraftChangeSchema = z.object({
+  label:               z.string().min(1),
+  from:                z.string(),
+  to:                  z.string().min(1),
+  applied_suggestion:  z.string().min(8),
+})
+
 const DimensionFeedbackSchema = (max: number) =>
   z.object({
     score:    z.number().min(0).max(max),
@@ -36,9 +43,11 @@ export const LDDFrameworkSchema = z.object({
   executive_summary:      z.string().min(40),
   practice_goal:          z.string().min(16),
   ldd_coach_feedback:     z.array(z.string().min(16)).min(3).max(6),
-  full_redraft:           z.string().min(40).optional(),
+  full_redraft:           z.string().min(40),
+  redraft_changes:        z.array(RedraftChangeSchema).min(3).max(10),
 })
 
 export type LDDFrameworkResult = z.infer<typeof LDDFrameworkSchema>
 export type CoachingItem       = z.infer<typeof CoachingItemSchema>
 export type FeedbackItem       = z.infer<typeof FeedbackItemSchema>
+export type RedraftChange      = z.infer<typeof RedraftChangeSchema>

@@ -6,6 +6,7 @@ import {
   getOverallJustification,
   getPracticeGoal,
 } from '@/lib/report/coachFeedback'
+import { parseRedraftSegments, type RedraftChange } from '@/lib/report/redraft'
 import type { Analysis, CoachingItem, FeedbackItem, LDDFrameworkResult } from '@/types'
 import { CONTENT_DIMENSIONS, DELIVERY_DIMENSIONS, type ScoreDimension } from '@/types'
 
@@ -23,6 +24,7 @@ export type ReportPdfData = {
   executiveSummary: string | null
   practiceGoal: string | null
   fullRedraft: string | null
+  redraftChanges: RedraftChange[]
   coachFeedback: string[]
   strengths: FeedbackItem[]
   areas: FeedbackItem[]
@@ -403,46 +405,141 @@ export function buildReportPdfBytes(data: ReportPdfData): Uint8Array {
     }
   }
 
-  // ── Full redraft ──────────────────────────────────────────
+  // ── Full redraft with highlighted changes ─────────────────
   if (data.fullRedraft) {
     sectionTitle('Full redrafted script')
     writeWrapped(
-      'A polished version to practise aloud. Compare with the original transcript below.',
+      'Polished practise script with every major coaching suggestion applied (richer detail, stronger hook/CTA, grammar fixes, clearer structure, and pause cues).',
       8,
       { color: MUTED }
     )
+    y += 1
+    writeWrapped(
+      'Highlight key: bold green underlined text = NEW or CHANGED versus your original. Plain text is unchanged. [pause] = breath/pause cue.',
+      8,
+      { color: GREEN }
+    )
     y += 2
-    ensureSpace(20)
-    const redraftLines = doc.splitTextToSize(pdfText(data.fullRedraft), contentWidth - 6) as string[]
-    // Draw as a tinted block that can span pages
-    doc.setFillColor(BRAND_LIGHT.r, BRAND_LIGHT.g, BRAND_LIGHT.b)
-    const firstChunkH = Math.min(8 + redraftLines.length * 3.6, pageBottom - y)
-    doc.roundedRect(margin, y, contentWidth, Math.max(10, firstChunkH), 2, 2, 'F')
-    y += 5
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(TEXT.r, TEXT.g, TEXT.b)
-    for (const line of redraftLines) {
-      if (y > pageBottom - 4) {
-        newPage()
-        doc.setFillColor(BRAND_LIGHT.r, BRAND_LIGHT.g, BRAND_LIGHT.b)
-        doc.roundedRect(margin, y, contentWidth, pageBottom - y - 2, 2, 2, 'F')
-        y += 5
-        doc.setFont('helvetica', 'normal')
-        doc.setFontSize(8.5)
-        doc.setTextColor(TEXT.r, TEXT.g, TEXT.b)
+
+    const writeHighlightedScript = (script: string) => {
+      const segments = parseRedraftSegments(script)
+      const tokens: Array<{ text: string; highlight: boolean }> = []
+      for (const seg of segments) {
+        const parts = pdfText(seg.text).split(/(\s+)/)
+        for (const part of parts) {
+          if (!part) continue
+          tokens.push({ text: part, highlight: seg.type === 'highlight' })
+        }
       }
-      doc.text(line, margin + 3, y)
-      y += 3.6
+
+      ensureSpace(16)
+      const left = margin + 3
+      const right = pageWidth - margin - 3
+      let x = left
+      const lineH = 3.9
+
+      doc.setFillColor(BRAND_LIGHT.r, BRAND_LIGHT.g, BRAND_LIGHT.b)
+      doc.roundedRect(margin, y - 2, contentWidth, 8, 2, 2, 'F')
+
+      for (const token of tokens) {
+        doc.setFont('helvetica', token.highlight ? 'bold' : 'normal')
+        doc.setFontSize(8.5)
+        const w = doc.getTextWidth(token.text)
+        const isSpace = /^\s+$/.test(token.text)
+
+        if (!isSpace && x + w > right) {
+          y += lineH
+          x = left
+          if (y > pageBottom - 6) {
+            newPage()
+            doc.setFillColor(BRAND_LIGHT.r, BRAND_LIGHT.g, BRAND_LIGHT.b)
+            doc.roundedRect(margin, y - 2, contentWidth, 8, 2, 2, 'F')
+          }
+        }
+
+        if (token.highlight) {
+          doc.setTextColor(GREEN.r, GREEN.g, GREEN.b)
+        } else {
+          doc.setTextColor(TEXT.r, TEXT.g, TEXT.b)
+        }
+        doc.text(token.text, x, y)
+        if (token.highlight && !isSpace) {
+          doc.setDrawColor(GREEN.r, GREEN.g, GREEN.b)
+          doc.setLineWidth(0.35)
+          doc.line(x, y + 0.9, x + w, y + 0.9)
+        }
+        x += w
+      }
+      y += lineH + 3
     }
-    y += 4
+
+    writeHighlightedScript(data.fullRedraft)
+
+    if (data.redraftChanges.length) {
+      sectionTitle('Changes applied in the redraft')
+      writeWrapped(
+        'Old wording versus the new draft — each item maps to a coaching suggestion from this report.',
+        8,
+        { color: MUTED }
+      )
+      y += 2
+
+      for (const change of data.redraftChanges) {
+        const fromText = change.from
+          ? `OLD: "${pdfText(change.from)}"`
+          : 'OLD: (new addition — not in original)'
+        const toText = `NEW: "${pdfText(change.to)}"`
+        const whyText = pdfText(change.applied_suggestion)
+        const fromLines = doc.splitTextToSize(fromText, contentWidth - 8) as string[]
+        const toLines = doc.splitTextToSize(toText, contentWidth - 8) as string[]
+        const whyLines = doc.splitTextToSize(whyText, contentWidth - 8) as string[]
+        const blockH = 12 + (fromLines.length + toLines.length + whyLines.length) * 3.3
+        ensureSpace(Math.min(blockH, 55))
+
+        const startY = y
+        doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b)
+        doc.setFillColor(255, 255, 255)
+        doc.roundedRect(margin, startY, contentWidth, blockH - 1, 2, 2, 'D')
+
+        y = startY + 5
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8.5)
+        doc.setTextColor(BRAND.r, BRAND.g, BRAND.b)
+        doc.text(pdfText(change.label), margin + 3, y)
+        y += 4
+
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(8)
+        doc.setTextColor(AMBER.r, AMBER.g, AMBER.b)
+        for (const line of fromLines) {
+          doc.text(line, margin + 3, y)
+          y += 3.3
+        }
+
+        doc.setTextColor(GREEN.r, GREEN.g, GREEN.b)
+        doc.setFont('helvetica', 'bold')
+        for (const line of toLines) {
+          doc.text(line, margin + 3, y)
+          y += 3.3
+        }
+
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(MUTED.r, MUTED.g, MUTED.b)
+        for (const line of whyLines) {
+          doc.text(line, margin + 3, y)
+          y += 3.3
+        }
+
+        y = startY + blockH + 2
+      }
+    }
   }
 
   // ── Full transcript ───────────────────────────────────────
   if (data.analysis.transcript) {
-    sectionTitle('Full transcript')
+    sectionTitle('Full transcript (original)')
     writeWrapped(
-      'Original words from the recording — use this to compare with the redraft and line suggestions above.',
+      'Your original words from the recording — compare with the highlighted redraft and the change list above.',
       8,
       { color: MUTED }
     )
@@ -471,3 +568,5 @@ export function buildCoachMeta(analysis: Analysis) {
     fullRedraft: getFullRedraft(analysis),
   }
 }
+
+export { getRedraftChanges } from '@/lib/report/redraft'

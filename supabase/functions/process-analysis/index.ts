@@ -277,6 +277,12 @@ type AnalysisResult = {
   practice_goal: string
   ldd_coach_feedback: string[]
   full_redraft: string
+  redraft_changes: Array<{
+    label: string
+    from: string
+    to: string
+    applied_suggestion: string
+  }>
 }
 
 type TimingInfo = {
@@ -433,7 +439,9 @@ OUTPUT FIELD RULES
 - For richness: cite specific details that earned or lacked depth.
 - For duration: name speaking-time quality and what to add or trim.
 - overall_justification: 2–4 sentences under the overall score; mention richness and/or duration when they materially affect the grade.
-- executive_summary, practice_goal, ldd_coach_feedback, full_redraft: same coaching standards as before. If the original was thin, enrich the redraft while staying speakable.
+- executive_summary, practice_goal, ldd_coach_feedback: same coaching standards as before.
+- full_redraft: Complete rewrite that implements ALL material suggestions (transcript_coaching, areas_for_improvement, richer detail, stronger hook/CTA, [pause] cues). Wrap every NEW or SUBSTANTIALLY CHANGED phrase in [[double square brackets]]. Leave unchanged wording unmarked. [pause] stays as [pause].
+- redraft_changes: 4–8 items { label, from, to, applied_suggestion } cataloguing those highlights (to without brackets).
 
 JSON schema:
 {
@@ -455,6 +463,7 @@ JSON schema:
   "executive_summary": "...",
   "practice_goal": "...",
   "ldd_coach_feedback": ["...", "...", "...", "...", "..."],
-  "full_redraft": "..."
+  "full_redraft": "... [[highlighted new or changed phrase]] ... [pause] ...",
+  "redraft_changes": [{ "label": "...", "from": "...", "to": "...", "applied_suggestion": "..." }]
 }`
 }
