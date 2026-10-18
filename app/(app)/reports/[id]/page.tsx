@@ -33,10 +33,30 @@ export default function ReportPage() {
   const [audioUrl, setAudioUrl]   = useState<string | null>(null)
   const [loading,  setLoading]    = useState(true)
   const [error,    setError]      = useState<string | null>(null)
-  const [processError, setProcessError] = useState<string | null>(null)
-  const processStarted = useRef(false)
+  const [jobError, setJobError] = useState<string | null>(null)
+  const [polledStatus, setPolledStatus] = useState<string | null>(null)
+  const processInFlight = useRef(false)
+  const sessionStatusRef = useRef<string | null>(null)
 
   const realtimeStatus = useRealtimeSession(id)
+  const sessionStatus = polledStatus || realtimeStatus
+  sessionStatusRef.current = sessionStatus
+
+  async function triggerProcess() {
+    if (processInFlight.current) return
+    processInFlight.current = true
+    try {
+      // Errors land on the session job row; the status poll shows them.
+      await fetch(`/api/sessions/${id}/process`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+    } catch {
+      // A dropped request is retried while this page stays open.
+    } finally {
+      processInFlight.current = false
+    }
+  }
 
   async function fetchReport() {
     try {
@@ -56,48 +76,58 @@ export default function ReportPage() {
 
   useEffect(() => { fetchReport() }, [id])
 
-  // Fast poll until report is ready (retry / legacy sessions only)
+  // Keep asking until a report row exists, including after an error retry.
   useEffect(() => {
     if (analysis) return
-    if (realtimeStatus === 'error') {
-      setLoading(false)
-      return
+
+    async function pollStatus() {
+      try {
+        const res = await fetch(`/api/sessions/${id}`, { credentials: 'same-origin' })
+        if (!res.ok) return
+        const data = await res.json()
+        const status = data?.session?.status
+        if (typeof status === 'string') setPolledStatus(status)
+        const message = data?.job?.error_message
+        setJobError(typeof message === 'string' && message.trim()
+          ? formatProcessError(message)
+          : null)
+        if (status === 'error') setLoading(false)
+      } catch {
+        // The report poll retries.
+      }
     }
-    const interval = setInterval(() => fetchReport(), 1000)
+
+    void pollStatus()
+    const interval = setInterval(() => {
+      void fetchReport()
+      void pollStatus()
+    }, 1500)
     return () => clearInterval(interval)
-  }, [id, analysis, realtimeStatus])
+  }, [id, analysis])
 
-  // Fallback if analysis was not started (e.g. closed tab before process began)
+  // Start analysis if the upload request never claimed the job.
+  // Repeat while this page is open so a dead worker is picked up after its heartbeat goes stale.
   useEffect(() => {
-    if (!id || analysis || !realtimeStatus || realtimeStatus !== 'pending') return
+    if (!id || analysis) return
 
-    const timer = setTimeout(() => {
-      if (processStarted.current || analysis) return
-      processStarted.current = true
-      fetch(`/api/sessions/${id}/process`, { method: 'POST', credentials: 'same-origin' })
-        .then(async res => {
-          const data = await res.json()
-          if (!res.ok) {
-            setProcessError(formatProcessError(data.error || 'Analysis failed'))
-            setLoading(false)
-          }
-        })
-        .catch(() => {
-          setProcessError('Could not reach the server. Check your connection and try again.')
-          setLoading(false)
-        })
-    }, 12000)
-
-    return () => clearTimeout(timer)
-  }, [id, analysis, realtimeStatus])
+    const first = setTimeout(() => { void triggerProcess() }, 12000)
+    const retry = setInterval(() => {
+      if (sessionStatusRef.current === 'error') return
+      void triggerProcess()
+    }, 30000)
+    return () => {
+      clearTimeout(first)
+      clearInterval(retry)
+    }
+  }, [id, analysis])
 
   if (loading || !analysis) {
-    if (realtimeStatus === 'error' || processError) {
+    if (sessionStatus === 'error') {
       return (
         <div className="max-w-xl mx-auto mt-16 text-center space-y-4">
           <AlertTriangle className="w-10 h-10 text-red-600 mx-auto" />
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Analysis failed</h2>
-          <p className="text-red-600 dark:text-red-400 text-sm">{processError || error || 'Something went wrong.'}</p>
+          <p className="text-red-600 dark:text-red-400 text-sm">{jobError || error || 'Something went wrong.'}</p>
           <div className="flex gap-3 justify-center pt-2 flex-wrap">
             <RetryAnalysisButton sessionId={id} />
             <Link href="/upload" className="text-sm text-brand-600 font-medium px-4 py-2">New recording</Link>
