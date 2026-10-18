@@ -33,15 +33,24 @@ function safeFilename(mimeType: string, filename: string): string {
   return `${base}.${map[type] || 'webm'}`
 }
 
+function audioUpload(audioBuffer: Buffer, mimeType: string, filename: string): Blob {
+  const type = mimeType.split(';')[0].trim() || 'audio/webm'
+  // Copy out of the Buffer pool so the uploaded file is exactly the recording.
+  const bytes = new Uint8Array(audioBuffer.byteLength)
+  bytes.set(audioBuffer)
+  if (typeof File !== 'undefined') return new File([bytes], filename, { type })
+  return new Blob([bytes], { type })
+}
+
 async function transcribeWithFetch(
   audioBuffer: Buffer,
   mimeType: string,
   filename: string
 ): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY!
-  const type = mimeType.split(';')[0].trim()
   const formData = new FormData()
-  formData.append('file', new Blob([new Uint8Array(audioBuffer)], { type }), filename)
+  const upload = audioUpload(audioBuffer, mimeType, filename)
+  formData.append('file', upload, filename)
   formData.append('model', 'whisper-1')
   formData.append('response_format', 'text')
   formData.append('language', 'en')
