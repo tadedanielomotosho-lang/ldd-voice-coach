@@ -63,5 +63,7 @@ export function formatProcessError(message: string): string {
   if (/connection error|connect timeout|fetch failed|network|econnreset|etimedout|und_err_connect_timeout|gateway timeout|504/i.test(message)) {
     return 'Could not reach the analysis service. Check your internet connection and try again.'
   }
-  return message
+  const trimmed = message.trim()
+  if (trimmed.length > 280) return `${trimmed.slice(0, 277)}…`
+  return trimmed
 }
