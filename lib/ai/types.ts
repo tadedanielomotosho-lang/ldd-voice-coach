@@ -8,20 +8,31 @@ export const CoachingItemSchema = z.object({
 
 export const FeedbackItemSchema = z.object({
   title:  z.string().min(1),
-  detail: z.string().min(20),
+  detail: z.string().min(1),
 })
 
 export const RedraftChangeSchema = z.object({
   label:               z.string().min(1),
   from:                z.string(),
   to:                  z.string().min(1),
-  applied_suggestion:  z.string().min(8),
+  applied_suggestion:  z.string().min(1),
 })
+
+function clampedScore(max: number) {
+  return z.preprocess((value) => {
+    if (typeof value === 'string' && value.trim() !== '') {
+      const match = value.trim().match(/-?\d+(?:\.\d+)?/)
+      if (match) value = Number(match[0])
+    }
+    if (typeof value !== 'number' || !Number.isFinite(value)) return value
+    return Math.round(Math.min(max, Math.max(0, value)) * 100) / 100
+  }, z.number().min(0).max(max))
+}
 
 const DimensionFeedbackSchema = (max: number) =>
   z.object({
-    score:    z.number().min(0).max(max),
-    feedback: z.string().min(24),
+    score:    clampedScore(max),
+    feedback: z.string().min(1),
   })
 
 export const LDDFrameworkSchema = z.object({
@@ -39,12 +50,12 @@ export const LDDFrameworkSchema = z.object({
   strengths:              z.array(FeedbackItemSchema).min(1).max(6),
   areas_for_improvement:  z.array(FeedbackItemSchema).min(1).max(6),
   transcript_coaching:    z.array(CoachingItemSchema).min(0).max(15),
-  overall_justification:  z.string().min(40),
-  executive_summary:      z.string().min(40),
-  practice_goal:          z.string().min(16),
-  ldd_coach_feedback:     z.array(z.string().min(16)).min(3).max(6),
-  full_redraft:           z.string().min(40),
-  redraft_changes:        z.array(RedraftChangeSchema).min(3).max(10),
+  overall_justification:  z.string().min(1),
+  executive_summary:      z.string().min(1),
+  practice_goal:          z.string().min(1),
+  ldd_coach_feedback:     z.array(z.string().min(1)).min(1).max(8),
+  full_redraft:           z.string().min(1),
+  redraft_changes:        z.array(RedraftChangeSchema).min(0).max(12),
 })
 
 export type LDDFrameworkResult = z.infer<typeof LDDFrameworkSchema>

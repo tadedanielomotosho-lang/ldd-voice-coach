@@ -33,20 +33,46 @@ export default function ReportPage() {
   const [audioUrl, setAudioUrl]   = useState<string | null>(null)
   const [loading,  setLoading]    = useState(true)
   const [error,    setError]      = useState<string | null>(null)
-  const [processError, setProcessError] = useState<string | null>(null)
-  const processStarted = useRef(false)
+  const [jobError, setJobError]   = useState<string | null>(null)
+  const [reportMissing, setReportMissing] = useState(false)
+  const [polledStatus, setPolledStatus] = useState<string | null>(null)
+  const processInFlight = useRef(false)
+  const sessionStatusRef = useRef<string | null>(null)
+  const [autoRetries, setAutoRetries] = useState(0)
 
   const realtimeStatus = useRealtimeSession(id)
+  const sessionStatus = polledStatus || realtimeStatus
+  const fatalJobError = Boolean(jobError && /out of credit|API key was rejected|could not be read/i.test(jobError))
+  sessionStatusRef.current = sessionStatus
+
+  async function triggerProcess() {
+    if (processInFlight.current) return
+    processInFlight.current = true
+    try {
+      await fetch(`/api/sessions/${id}/process`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+    } catch {
+      // A dropped request is retried while this page stays open.
+    } finally {
+      processInFlight.current = false
+    }
+  }
 
   async function fetchReport() {
     try {
       const res  = await fetch(`/api/reports/${id}`)
-      if (res.status === 404) return
+      if (res.status === 404) {
+        setReportMissing(true)
+        return
+      }
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setAnalysis(data.analysis)
       setSession(data.analysis.sessions)
       setAudioUrl(data.audioUrl)
+      setReportMissing(false)
       setLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load report')
@@ -56,48 +82,68 @@ export default function ReportPage() {
 
   useEffect(() => { fetchReport() }, [id])
 
-  // Fast poll until report is ready (retry / legacy sessions only)
+  // Keep asking until a report row exists, including after a late save.
   useEffect(() => {
     if (analysis) return
-    if (realtimeStatus === 'error') {
-      setLoading(false)
-      return
+
+    async function pollStatus() {
+      try {
+        const res = await fetch(`/api/sessions/${id}`, { credentials: 'same-origin' })
+        if (!res.ok) return
+        const data = await res.json()
+        const status = data?.session?.status
+        if (typeof status === 'string') setPolledStatus(status)
+        const message = data?.job?.error_message
+        setJobError(typeof message === 'string' && message.trim()
+          ? formatProcessError(message)
+          : null)
+        if (status === 'error') setLoading(false)
+      } catch {
+        // The report poll retries.
+      }
     }
-    const interval = setInterval(() => fetchReport(), 1000)
+
+    void pollStatus()
+    const interval = setInterval(() => {
+      void fetchReport()
+      void pollStatus()
+    }, 1500)
     return () => clearInterval(interval)
-  }, [id, analysis, realtimeStatus])
+  }, [id, analysis])
 
-  // Fallback if analysis was not started (e.g. closed tab before process began)
+  // Start analysis if the upload request never claimed the job.
+  // Repeat while this page is open so a dead worker is picked up after its heartbeat goes stale.
   useEffect(() => {
-    if (!id || analysis || !realtimeStatus || realtimeStatus !== 'pending') return
+    if (!id || analysis) return
 
+    const first = setTimeout(() => { void triggerProcess() }, 10000)
+    const retry = setInterval(() => {
+      if (sessionStatusRef.current === 'error' && (autoRetries >= 2 || fatalJobError)) return
+      void triggerProcess()
+    }, 30000)
+    return () => {
+      clearTimeout(first)
+      clearInterval(retry)
+    }
+  }, [id, analysis, autoRetries, fatalJobError])
+
+  // One automatic retry after a failure, in case the queue worker lost the race.
+  useEffect(() => {
+    if (!id || analysis || sessionStatus !== 'error' || !reportMissing || autoRetries >= 2 || fatalJobError) return
     const timer = setTimeout(() => {
-      if (processStarted.current || analysis) return
-      processStarted.current = true
-      fetch(`/api/sessions/${id}/process`, { method: 'POST', credentials: 'same-origin' })
-        .then(async res => {
-          const data = await res.json()
-          if (!res.ok) {
-            setProcessError(formatProcessError(data.error || 'Analysis failed'))
-            setLoading(false)
-          }
-        })
-        .catch(() => {
-          setProcessError('Could not reach the server. Check your connection and try again.')
-          setLoading(false)
-        })
-    }, 12000)
-
+      setAutoRetries((count) => count + 1)
+      void triggerProcess()
+    }, autoRetries === 0 ? 1200 : 15000)
     return () => clearTimeout(timer)
-  }, [id, analysis, realtimeStatus])
+  }, [id, analysis, sessionStatus, reportMissing, autoRetries, fatalJobError])
 
   if (loading || !analysis) {
-    if (realtimeStatus === 'error' || processError) {
+    if ((sessionStatus === 'error' && reportMissing && (autoRetries >= 2 || fatalJobError)) || (error && reportMissing && sessionStatus === 'error')) {
       return (
         <div className="max-w-xl mx-auto mt-16 text-center space-y-4">
           <AlertTriangle className="w-10 h-10 text-red-600 mx-auto" />
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Analysis failed</h2>
-          <p className="text-red-600 dark:text-red-400 text-sm">{processError || error || 'Something went wrong.'}</p>
+          <p className="text-red-600 dark:text-red-400 text-sm">{jobError || error || 'Something went wrong.'}</p>
           <div className="flex gap-3 justify-center pt-2 flex-wrap">
             <RetryAnalysisButton sessionId={id} />
             <Link href="/upload" className="text-sm text-brand-600 font-medium px-4 py-2">New recording</Link>

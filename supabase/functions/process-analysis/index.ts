@@ -7,6 +7,7 @@ const SUPABASE_URL          = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const OPENAI_API_KEY        = Deno.env.get('OPENAI_API_KEY')!
 const MAX_ATTEMPTS          = 3
+const STALE_MS              = 60_000
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: { persistSession: false }
@@ -14,18 +15,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 
 Deno.serve(async (_req) => {
   try {
-    // Atomically claim one queued job
-    const { data: job, error: jobErr } = await supabase
-      .from('analysis_jobs')
-      .update({ status: 'processing', started_at: new Date().toISOString() })
-      .eq('status', 'queued')
-      .lt('attempt_count', MAX_ATTEMPTS)
-      .select()
-      .limit(1)
-      .maybeSingle()
-
-    if (jobErr) throw jobErr
-    if (!job)   return new Response(JSON.stringify({ message: 'No jobs to process' }), { status: 200 })
+    await failExhaustedJobs()
+    const job = await claimNextJob()
+    if (!job) return new Response(JSON.stringify({ message: 'No jobs to process' }), { status: 200 })
 
     console.log(`Processing job ${job.id} for session ${job.session_id}`)
 
@@ -42,16 +34,34 @@ Deno.serve(async (_req) => {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`Job ${job.id} failed:`, msg)
 
+      const { data: saved } = await supabase
+        .from('analyses')
+        .select('id')
+        .eq('session_id', job.session_id)
+        .limit(1)
+
+      if (saved && saved.length > 0) {
+        await supabase.from('sessions').update({ status: 'done' }).eq('id', job.session_id)
+        await supabase.from('analysis_jobs').update({
+          status: 'done',
+          error_message: null,
+          completed_at: new Date().toISOString(),
+        }).eq('id', job.id)
+        return new Response(JSON.stringify({ success: true, recovered: true, job_id: job.id }), { status: 200 })
+      }
+
       // Increment attempt count; re-queue or mark error
       const newCount = (job.attempt_count || 0) + 1
       await supabase.from('analysis_jobs').update({
         status:        newCount >= MAX_ATTEMPTS ? 'error' : 'queued',
         error_message: msg,
         attempt_count: newCount,
-      }).eq('id', job.id)
+      }).eq('id', job.id).eq('status', 'processing')
 
       if (newCount >= MAX_ATTEMPTS) {
-        await supabase.from('sessions').update({ status: 'error' }).eq('id', job.session_id)
+        await supabase.from('sessions').update({ status: 'error' })
+          .eq('id', job.session_id)
+          .in('status', ['pending', 'processing'])
       }
 
       return new Response(JSON.stringify({ error: msg }), { status: 500 })
@@ -62,7 +72,148 @@ Deno.serve(async (_req) => {
   }
 })
 
+async function claimNextJob() {
+  const { data: queued, error: listErr } = await supabase
+    .from('analysis_jobs')
+    .select('*')
+    .eq('status', 'queued')
+    .lt('attempt_count', MAX_ATTEMPTS)
+    .order('queued_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (listErr) throw listErr
+
+  if (queued) {
+    const { data: job, error: claimErr } = await supabase
+      .from('analysis_jobs')
+      .update({ status: 'processing', started_at: new Date().toISOString() })
+      .eq('id', queued.id)
+      .eq('status', 'queued')
+      .select()
+      .maybeSingle()
+    if (claimErr && claimErr.code !== 'PGRST116') throw claimErr
+    if (job) return job
+  }
+
+  const cutoff = new Date(Date.now() - STALE_MS).toISOString()
+  const timed = await supabase
+    .from('analysis_jobs')
+    .select('*')
+    .eq('status', 'processing')
+    .lt('attempt_count', MAX_ATTEMPTS)
+    .lt('started_at', cutoff)
+    .order('queued_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (timed.error) throw timed.error
+
+  const missingHeartbeat = timed.data ? { data: null, error: null } : await supabase
+    .from('analysis_jobs')
+    .select('*')
+    .eq('status', 'processing')
+    .lt('attempt_count', MAX_ATTEMPTS)
+    .is('started_at', null)
+    .lt('queued_at', cutoff)
+    .order('queued_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (missingHeartbeat.error) throw missingHeartbeat.error
+  const stale = timed.data ?? missingHeartbeat.data
+  if (!stale) return null
+
+  const update = supabase
+    .from('analysis_jobs')
+    .update({
+      status: 'processing',
+      started_at: new Date().toISOString(),
+      attempt_count: (stale.attempt_count || 0) + 1,
+    })
+    .eq('id', stale.id)
+    .eq('status', 'processing')
+
+  const claimed = stale.started_at
+    ? await update.lt('started_at', cutoff).select().maybeSingle()
+    : await update.is('started_at', null).select().maybeSingle()
+
+  if (claimed.error && claimed.error.code !== 'PGRST116') throw claimed.error
+  return claimed.data
+}
+
+async function failExhaustedJobs() {
+  const cutoff = new Date(Date.now() - STALE_MS).toISOString()
+  const timed = await supabase
+    .from('analysis_jobs')
+    .select('id, session_id')
+    .eq('status', 'processing')
+    .gte('attempt_count', MAX_ATTEMPTS)
+    .lt('started_at', cutoff)
+    .limit(5)
+  if (timed.error) throw timed.error
+  const missing = await supabase
+    .from('analysis_jobs')
+    .select('id, session_id')
+    .eq('status', 'processing')
+    .gte('attempt_count', MAX_ATTEMPTS)
+    .is('started_at', null)
+    .limit(5)
+  if (missing.error) throw missing.error
+
+  for (const row of [...(timed.data ?? []), ...(missing.data ?? [])]) {
+    const { data: saved } = await supabase
+      .from('analyses')
+      .select('id')
+      .eq('session_id', row.session_id)
+      .limit(1)
+
+    if (saved && saved.length > 0) {
+      await supabase.from('sessions').update({ status: 'done' }).eq('id', row.session_id)
+      await supabase.from('analysis_jobs').update({
+        status: 'done',
+        error_message: null,
+        completed_at: new Date().toISOString(),
+      }).eq('id', row.id).eq('status', 'processing')
+      continue
+    }
+
+    await supabase.from('analysis_jobs').update({
+      status: 'error',
+      error_message: 'Analysis timed out repeatedly. Please retry.',
+      completed_at: new Date().toISOString(),
+    }).eq('id', row.id).eq('status', 'processing')
+
+    await supabase.from('sessions').update({ status: 'error' })
+      .eq('id', row.session_id)
+      .eq('status', 'processing')
+  }
+}
+
+function dimensionScore(dimension: { score?: unknown } | undefined, max: number): number {
+  const raw = dimension?.score
+  const match = typeof raw === 'number' ? String(raw) : String(raw ?? '')
+  const found = match.match(/-?\d+(?:\.\d+)?/)
+  const n = found ? Number(found[0]) : Number.NaN
+  if (!Number.isFinite(n)) return 0
+  return Math.min(max, Math.max(0, n))
+}
+
 async function processJob(sessionId: string, jobId: string) {
+  const heartbeat = setInterval(() => {
+    void supabase.from('analysis_jobs').update({
+      started_at: new Date().toISOString(),
+    }).eq('id', jobId).eq('status', 'processing')
+  }, 20_000)
+
+  try {
+    await runProcessJob(sessionId, jobId)
+  } finally {
+    clearInterval(heartbeat)
+  }
+}
+
+async function runProcessJob(sessionId: string, jobId: string) {
   // 1. Fetch session
   const { data: session, error: sessionErr } = await supabase
     .from('sessions')
@@ -72,6 +223,17 @@ async function processJob(sessionId: string, jobId: string) {
 
   if (sessionErr || !session) throw new Error('Session not found')
   if (!session.audio_storage_path) throw new Error('No audio file for session')
+
+  const { data: alreadySaved } = await supabase
+    .from('analyses')
+    .select('id')
+    .eq('session_id', sessionId)
+    .limit(1)
+
+  if (alreadySaved && alreadySaved.length > 0) {
+    await supabase.from('sessions').update({ status: 'done' }).eq('id', sessionId)
+    return
+  }
 
   await supabase.from('sessions').update({ status: 'processing' }).eq('id', sessionId)
 
@@ -96,6 +258,9 @@ async function processJob(sessionId: string, jobId: string) {
   )
 
   const wordCount = transcript.trim().split(/\s+/).filter(Boolean).length
+  if (!transcript.trim() || wordCount === 0) {
+    throw new Error('No speech was detected in this recording. Record again and speak a little closer to the microphone.')
+  }
   const measured = session.audio_duration_seconds && session.audio_duration_seconds > 0
     ? Number(session.audio_duration_seconds)
     : null
@@ -105,29 +270,32 @@ async function processJob(sessionId: string, jobId: string) {
   // 5. Prior attempt for progress-oriented coaching
   const prior = await fetchPriorAttempt(session.student_id, sessionId)
 
-  // 6. Analyse with GPT-4o
-  console.log('Analysing with GPT-4o...')
+  // 6. Analyse
+  console.log('Analysing presentation...')
   const analysis = await analyseWithGPT4o(transcript, session.presentation_topic, prior, {
     durationSeconds,
     durationEstimated,
     wordCount,
   })
 
+  const hookScore = dimensionScore(analysis.hook, 15)
+  const purposeScore = dimensionScore(analysis.purpose, 12)
+  const keyPointsScore = dimensionScore(analysis.key_points, 25)
+  const richnessScore = dimensionScore(analysis.richness, 20)
+  const ctaScore = dimensionScore(analysis.cta, 13)
+  const clarityScore = dimensionScore(analysis.clarity, 15)
+  const toneScore = dimensionScore(analysis.tone, 20)
+  const paceScore = dimensionScore(analysis.pace, 20)
+  const pauseScore = dimensionScore(analysis.pauses, 20)
+  const volumeScore = dimensionScore(analysis.volume, 20)
+  const durationScore = dimensionScore(analysis.duration, 20)
+
   // 7. Calculate scores
   const contentScore =
-    Number(analysis.hook.score) +
-    Number(analysis.purpose.score) +
-    Number(analysis.key_points.score) +
-    Number(analysis.richness.score) +
-    Number(analysis.cta.score) +
-    Number(analysis.clarity.score)
+    hookScore + purposeScore + keyPointsScore + richnessScore + ctaScore + clarityScore
 
   const deliveryScore =
-    Number(analysis.tone.score) +
-    Number(analysis.pace.score) +
-    Number(analysis.pauses.score) +
-    Number(analysis.volume.score) +
-    Number(analysis.duration.score)
+    toneScore + paceScore + pauseScore + volumeScore + durationScore
 
   const overallScore = Math.round((contentScore * 0.6 + deliveryScore * 0.4) * 100) / 100
 
@@ -146,18 +314,18 @@ async function processJob(sessionId: string, jobId: string) {
     transcript,
     word_count:         wordCount,
     content_score:      contentScore,
-    hook_score:         analysis.hook.score,
-    purpose_score:      analysis.purpose.score,
-    key_points_score:   analysis.key_points.score,
-    richness_score:     analysis.richness.score,
-    cta_score:          analysis.cta.score,
-    clarity_score:      analysis.clarity.score,
+    hook_score:         hookScore,
+    purpose_score:      purposeScore,
+    key_points_score:   keyPointsScore,
+    richness_score:     richnessScore,
+    cta_score:          ctaScore,
+    clarity_score:      clarityScore,
     delivery_score:     deliveryScore,
-    tone_score:         analysis.tone.score,
-    pace_score:         analysis.pace.score,
-    pause_score:        analysis.pauses.score,
-    volume_score:       analysis.volume.score,
-    duration_score:     analysis.duration.score,
+    tone_score:         toneScore,
+    pace_score:         paceScore,
+    pause_score:        pauseScore,
+    volume_score:       volumeScore,
+    duration_score:     durationScore,
     overall_score:      overallScore,
     overall_justification: analysis.overall_justification,
     hook_feedback:      analysis.hook.feedback,
@@ -188,6 +356,13 @@ async function processJob(sessionId: string, jobId: string) {
   for (let attempt = 0; attempt < optionalColumns.length + 1; attempt++) {
     ;({ error: insertErr } = await supabase.from('analyses').insert(payload))
     if (!insertErr) break
+    if (insertErr && /duplicate key|unique constraint|analyses_session_id/i.test(insertErr.message)) {
+      ;({ error: insertErr } = await supabase
+        .from('analyses')
+        .update({ ...payload, created_at: new Date().toISOString() })
+        .eq('session_id', sessionId))
+      if (!insertErr) break
+    }
     const missing = optionalColumns.filter(
       (col) => insertErr!.message.includes(col) && col in payload
     )
@@ -291,6 +466,128 @@ type TimingInfo = {
   wordCount: number
 }
 
+function parseModelJson(raw: string): unknown {
+  const fenced = raw.trim().match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+  const text = (fenced?.[1] ?? raw).trim()
+  try {
+    return JSON.parse(text)
+  } catch {
+    // Close a reply that was cut off after the scores.
+  }
+
+  let slice = text
+  for (let attempt = 0; attempt < 16; attempt++) {
+    try {
+      return JSON.parse(closeJson(slice))
+    } catch {
+      let inString = false
+      let escape = false
+      let comma = -1
+      for (let i = 0; i < slice.length; i++) {
+        const ch = slice[i]
+        if (inString) {
+          if (escape) { escape = false; continue }
+          if (ch === '\\') { escape = true; continue }
+          if (ch === '"') inString = false
+          continue
+        }
+        if (ch === '"') { inString = true; continue }
+        if (ch === ',') comma = i
+      }
+      if (comma <= 0) break
+      slice = slice.slice(0, comma)
+    }
+  }
+  throw new Error('The analysis response was not valid JSON.')
+}
+
+function closeJson(input: string): string {
+  let out = ''
+  const stack: string[] = []
+  let inString = false
+  let escape = false
+  for (const ch of input) {
+    out += ch
+    if (inString) {
+      if (escape) { escape = false; continue }
+      if (ch === '\\') { escape = true; continue }
+      if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '"') { inString = true; continue }
+    if (ch === '{' || ch === '[') stack.push(ch)
+    else if ((ch === '}' || ch === ']') && stack.length > 0) stack.pop()
+  }
+  if (inString) out += '"'
+  out = out.replace(/,\s*$/, '').replace(/:\s*$/, ': null')
+  while (stack.length > 0) {
+    const open = stack.pop()
+    out += open === '{' ? '}' : ']'
+  }
+  return out
+}
+
+function coerceAnalysis(input: unknown): AnalysisResult {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('Analysis response was missing scores')
+  }
+  let obj = input as Record<string, unknown>
+  for (let depth = 0; depth < 3; depth++) {
+    if ('hook' in obj || 'purpose' in obj || 'tone' in obj) break
+    const nested = obj.analysis ?? obj.result ?? obj.data ?? obj.response ?? obj.output
+    if (!nested || typeof nested !== 'object' || Array.isArray(nested)) break
+    obj = nested as Record<string, unknown>
+  }
+
+  const aliases: Record<string, string> = {
+    keypoints: 'key_points',
+    calltoaction: 'cta',
+    pause: 'pauses',
+    pauses: 'pauses',
+    speakingduration: 'duration',
+  }
+  const source: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(obj)) {
+    const compact = key.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+    const canonical = aliases[compact] ?? key
+    if (source[canonical] == null) source[canonical] = value
+  }
+
+  const dim = (key: string, max: number): Dimension => {
+    const value = source[key]
+    if (value == null) throw new Error(`Analysis response was missing ${key}`)
+    const row = value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : { score: value, feedback: '' }
+    const rawScore = row.score ?? row.value ?? row.points ?? row.rating
+    if (rawScore == null || rawScore === '') {
+      throw new Error(`Analysis response was missing ${key}`)
+    }
+    const score = dimensionScore({ score: rawScore }, max)
+    const feedback = typeof row.feedback === 'string'
+      ? row.feedback
+      : typeof row.comment === 'string'
+        ? row.comment
+        : ''
+    return { score, feedback }
+  }
+
+  return {
+    ...(source as AnalysisResult),
+    hook: dim('hook', 15),
+    purpose: dim('purpose', 12),
+    key_points: dim('key_points', 25),
+    richness: dim('richness', 20),
+    cta: dim('cta', 13),
+    clarity: dim('clarity', 15),
+    tone: dim('tone', 20),
+    pace: dim('pace', 20),
+    pauses: dim('pauses', 20),
+    volume: dim('volume', 20),
+    duration: dim('duration', 20),
+  }
+}
+
 async function analyseWithGPT4o(
   transcript: string,
   topic: string,
@@ -298,39 +595,58 @@ async function analyseWithGPT4o(
   timing: TimingInfo
 ): Promise<AnalysisResult> {
   const prompt = buildPrompt(transcript, topic, prior, timing)
+  let lastError = 'Analysis failed'
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method:  'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model:           'gpt-4o',
-      temperature:     0.2,
-      max_tokens:      5000,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are an expert LDD communication coach. Follow the scoring rubric exactly. Always respond with valid JSON only. Use correct grammar. Be specific, balanced, actionable, prioritised, encouraging, consistent, and progress-oriented. Score content richness and speaking duration honestly.',
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
         },
-        { role: 'user', content: prompt },
-      ],
-    }),
-  })
+        body: JSON.stringify({
+          model:           'gpt-4o-mini',
+          temperature:     attempt === 0 ? 0.2 : 0,
+          max_tokens:      12000,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are an expert LDD communication coach. Follow the scoring rubric exactly. Always respond with valid JSON only. Use correct grammar. Be specific, balanced, actionable, prioritised, encouraging, consistent, and progress-oriented. Score content richness and speaking duration honestly.',
+            },
+            {
+              role: 'user',
+              content: attempt === 0
+                ? prompt
+                : `${prompt}\n\nThe previous reply could not be saved (${lastError}). Return one complete JSON object. Keep feedback to 2–3 sentences and the full redraft under 220 words.`,
+            },
+          ],
+        }),
+      })
 
-  if (!response.ok) {
-    const err = await response.text()
-    throw new Error(`GPT-4o API error: ${err}`)
+      if (!response.ok) {
+        const err = await response.text()
+        throw new Error(`GPT-4o API error: ${err}`)
+      }
+
+      const data = await response.json() as {
+        choices: Array<{ finish_reason?: string; message: { content: string } }>
+      }
+      const raw = data.choices[0]?.message?.content
+      if (!raw) throw new Error('GPT-4o returned empty response')
+      const analysis = coerceAnalysis(parseModelJson(raw))
+      if (!analysis.hook || !analysis.duration) {
+        throw new Error('Analysis response was missing scores')
+      }
+      return analysis
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : 'Analysis failed'
+    }
   }
 
-  const data = await response.json() as { choices: Array<{ message: { content: string } }> }
-  const raw  = data.choices[0]?.message?.content
-  if (!raw) throw new Error('GPT-4o returned empty response')
-
-  return JSON.parse(raw) as AnalysisResult
+  throw new Error(lastError)
 }
 
 function buildPrompt(

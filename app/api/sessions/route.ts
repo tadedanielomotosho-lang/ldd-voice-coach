@@ -132,8 +132,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: sessionErr.message }, { status: 500 })
     }
 
-    // Queue analysis — runs on the report page so upload returns quickly
-    await service.from('analysis_jobs').insert({ session_id: sessionId })
+    // Hold the job as processing with no heartbeat so the old queue worker
+    // (which claims every queued row) cannot take it and fail the session.
+    // The upload request claims it immediately. A null started_at is free to claim.
+    await service.from('analysis_jobs').insert({
+      session_id: sessionId,
+      status: 'processing',
+    })
 
     return attachCookies(
       NextResponse.json({ session }, { status: 201 })

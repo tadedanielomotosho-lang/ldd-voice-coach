@@ -32,11 +32,12 @@ export async function submitRecording(
 
   const processFd = new FormData()
   processFd.append('audio_file', file)
+  // The report page starts analysis again if this request never claims the job.
   void fetch(`/api/sessions/${sessionId}/process`, {
     method:      'POST',
     body:        processFd,
     credentials: 'same-origin',
-  })
+  }).catch(() => {})
 
   return sessionId
 }

@@ -22,7 +22,15 @@ export async function GET(
     .single()
 
   if (error) return attachCookies(NextResponse.json({ error: error.message }, { status: 404 }))
-  return attachCookies(NextResponse.json({ session: data }))
+
+  const { data: jobs } = await supabase
+    .from('analysis_jobs')
+    .select('status, error_message')
+    .eq('session_id', id)
+    .order('queued_at', { ascending: false })
+    .limit(1)
+
+  return attachCookies(NextResponse.json({ session: data, job: jobs?.[0] ?? null }))
 }
 
 export async function DELETE(
