@@ -38,9 +38,11 @@ export default function ReportPage() {
   const [polledStatus, setPolledStatus] = useState<string | null>(null)
   const processInFlight = useRef(false)
   const sessionStatusRef = useRef<string | null>(null)
+  const [autoRetries, setAutoRetries] = useState(0)
 
   const realtimeStatus = useRealtimeSession(id)
   const sessionStatus = polledStatus || realtimeStatus
+  const fatalJobError = Boolean(jobError && /out of credit|API key was rejected|could not be read/i.test(jobError))
   sessionStatusRef.current = sessionStatus
 
   async function triggerProcess() {
@@ -116,17 +118,27 @@ export default function ReportPage() {
 
     const first = setTimeout(() => { void triggerProcess() }, 10000)
     const retry = setInterval(() => {
-      if (sessionStatusRef.current === 'error') return
+      if (sessionStatusRef.current === 'error' && (autoRetries >= 2 || fatalJobError)) return
       void triggerProcess()
     }, 30000)
     return () => {
       clearTimeout(first)
       clearInterval(retry)
     }
-  }, [id, analysis])
+  }, [id, analysis, autoRetries, fatalJobError])
+
+  // One automatic retry after a failure, in case the queue worker lost the race.
+  useEffect(() => {
+    if (!id || analysis || sessionStatus !== 'error' || !reportMissing || autoRetries >= 2 || fatalJobError) return
+    const timer = setTimeout(() => {
+      setAutoRetries((count) => count + 1)
+      void triggerProcess()
+    }, autoRetries === 0 ? 1200 : 15000)
+    return () => clearTimeout(timer)
+  }, [id, analysis, sessionStatus, reportMissing, autoRetries, fatalJobError])
 
   if (loading || !analysis) {
-    if ((sessionStatus === 'error' && reportMissing) || (error && reportMissing)) {
+    if ((sessionStatus === 'error' && reportMissing && (autoRetries >= 2 || fatalJobError)) || (error && reportMissing && sessionStatus === 'error')) {
       return (
         <div className="max-w-xl mx-auto mt-16 text-center space-y-4">
           <AlertTriangle className="w-10 h-10 text-red-600 mx-auto" />

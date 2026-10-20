@@ -115,6 +115,7 @@ async function claimNextJob() {
     .eq('status', 'processing')
     .lt('attempt_count', MAX_ATTEMPTS)
     .is('started_at', null)
+    .lt('queued_at', cutoff)
     .order('queued_at', { ascending: true })
     .limit(1)
     .maybeSingle()

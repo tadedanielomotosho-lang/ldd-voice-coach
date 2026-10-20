@@ -49,14 +49,15 @@ export async function claimAnalysisJob(
   }
 
   if (job.status === 'processing') {
-    if ((job.attempt_count ?? 0) >= ANALYSIS_MAX_AUTO_ATTEMPTS) return 'exhausted'
     const cutoff = new Date(Date.now() - ANALYSIS_STALE_MS).toISOString()
     if (job.started_at && job.started_at >= cutoff) return 'busy'
+    // A started_at means a worker already took the job and then went quiet.
+    // A null started_at is an upload waiting for this request, not a failed attempt.
+    if (job.started_at && (job.attempt_count ?? 0) >= ANALYSIS_MAX_AUTO_ATTEMPTS) return 'exhausted'
 
-    const staleClaim = {
-      ...processing,
-      attempt_count: (job.attempt_count ?? 0) + 1,
-    }
+    const staleClaim = job.started_at
+      ? { ...processing, attempt_count: (job.attempt_count ?? 0) + 1 }
+      : processing
     const query = service
       .from('analysis_jobs')
       .update(staleClaim)

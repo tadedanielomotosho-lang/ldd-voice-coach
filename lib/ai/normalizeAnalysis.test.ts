@@ -71,6 +71,29 @@ test('a cut-off redraft still validates when every score was already written', (
   assert.match(validated.data.full_redraft, /Practice this/)
 })
 
+test('score-only JSON still becomes a report', () => {
+  const normalized = normalizeAnalysisPayload({
+    hook: { score: 9, feedback: 'The opening asks a question.' },
+    purpose: { score: 7, feedback: 'The aim shows up early.' },
+    key_points: { score: 14, feedback: 'Two points follow in order.' },
+    richness: { score: 8, feedback: 'The example could be more specific.' },
+    cta: { score: 6, feedback: 'The close needs a next step.' },
+    clarity: { score: 10, feedback: 'The sentences are easy to follow.' },
+    tone: { score: 12, feedback: 'The tone stays warm.' },
+    pace: { score: 11, feedback: 'Ease the pace on the example.' },
+    pauses: { score: 10, feedback: 'Pause before the close.' },
+    volume: { score: 13, feedback: 'Project the opening line.' },
+    duration: { score: 12, feedback: 'The length is enough to develop the idea.' },
+  }, { transcript })
+
+  const validated = LDDFrameworkSchema.safeParse(normalized)
+  assert.equal(validated.success, true)
+  if (!validated.success) return
+  assert.equal(validated.data.hook.score, 9)
+  assert.ok(validated.data.executive_summary.length > 0)
+  assert.ok(validated.data.full_redraft.length > 0)
+})
+
 test('rejects a payload that has no scores', () => {
   const validated = LDDFrameworkSchema.safeParse(
     normalizeAnalysisPayload({ summary: 'Nice try' }, { transcript })

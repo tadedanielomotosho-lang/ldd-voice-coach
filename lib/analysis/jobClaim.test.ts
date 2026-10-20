@@ -131,6 +131,20 @@ test('three dead runs stop automatic retries', async () => {
   assert.equal(status, 'exhausted')
 })
 
+test('a new upload with no heartbeat can be claimed without counting a failure', async () => {
+  const db = createJobDb({
+    id: 'job-6',
+    status: 'processing',
+    started_at: null,
+    attempt_count: 0,
+  })
+
+  const status = await claimAnalysisJob(db.service, snapshot(db.row), 'pending', false)
+  assert.equal(status, 'claimed')
+  assert.equal(db.row.attempt_count, 0)
+  assert.ok(db.row.started_at)
+})
+
 test('an errored job can be claimed again for a manual retry', async () => {
   const db = createJobDb({
     id: 'job-5',
