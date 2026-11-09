@@ -6,6 +6,11 @@ import { downloadSessionAudio } from '@/lib/analysis/downloadAudio'
 import { fetchPriorAttempt } from '@/lib/analysis/priorAttempt'
 import { insertAnalysisRow } from '@/lib/analysis/insertAnalysis'
 import { estimateDurationFromWords } from '@/lib/analysis/duration'
+import {
+  claimAnalysisJob,
+  startAnalysisHeartbeat,
+  type AnalysisJobRow,
+} from '@/lib/analysis/jobClaim'
 
 export type CachedAudio = {
   buffer:   Buffer
@@ -38,7 +43,13 @@ async function runAnalysis(
 ) {
   const transcript = await transcribeAudio(audio.buffer, audio.mimeType, audio.filename)
   const wordCount  = countWords(transcript)
-  const prior      = await fetchPriorAttempt(service, session.student_id, sessionId)
+  if (!transcript.trim() || wordCount === 0) {
+    throw new Error(
+      'No speech was detected in this recording. Record again and speak a little closer to the microphone.'
+    )
+  }
+
+  const prior = await fetchPriorAttempt(service, session.student_id, sessionId)
 
   const measured = session.audio_duration_seconds && session.audio_duration_seconds > 0
     ? Number(session.audio_duration_seconds)
@@ -106,9 +117,74 @@ async function runAnalysis(
   if (jobId) {
     await service.from('analysis_jobs').update({
       status: 'done',
+      error_message: null,
       completed_at: new Date().toISOString(),
     }).eq('id', jobId)
   }
+}
+
+async function loadJob(
+  service: ReturnType<typeof createServiceClient>,
+  sessionId: string
+): Promise<AnalysisJobRow | null> {
+  const { data, error } = await service
+    .from('analysis_jobs')
+    .select('id, status, started_at, attempt_count')
+    .eq('session_id', sessionId)
+    .order('queued_at', { ascending: false })
+    .limit(1)
+
+  if (error) throw new Error(error.message)
+  return (data?.[0] as AnalysisJobRow | undefined) ?? null
+}
+
+async function hasSavedAnalysis(
+  service: ReturnType<typeof createServiceClient>,
+  sessionId: string
+): Promise<boolean> {
+  const { data, error } = await service
+    .from('analyses')
+    .select('id')
+    .eq('session_id', sessionId)
+    .limit(1)
+
+  if (error) return false
+  return Array.isArray(data) && data.length > 0
+}
+
+async function markFailed(
+  service: ReturnType<typeof createServiceClient>,
+  sessionId: string,
+  jobId: string | undefined,
+  message: string
+): Promise<boolean> {
+  if (await hasSavedAnalysis(service, sessionId)) {
+    await service.from('sessions').update({ status: 'done' }).eq('id', sessionId)
+    if (jobId) {
+      await service.from('analysis_jobs').update({
+        status: 'done',
+        error_message: null,
+        completed_at: new Date().toISOString(),
+      }).eq('id', jobId)
+    }
+    return true
+  }
+
+  await service
+    .from('sessions')
+    .update({ status: 'error' })
+    .eq('id', sessionId)
+    .in('status', ['pending', 'processing'])
+
+  if (jobId) {
+    await service.from('analysis_jobs').update({
+      status: 'error',
+      error_message: message,
+      completed_at: new Date().toISOString(),
+    }).eq('id', jobId).in('status', ['queued', 'processing'])
+  }
+
+  return false
 }
 
 export async function processSessionAnalysis(
@@ -116,98 +192,78 @@ export async function processSessionAnalysis(
   cachedAudio?: CachedAudio,
   options?: { force?: boolean }
 ): Promise<void> {
-  assertOpenAIKey()
-
   const service = createServiceClient()
   const force = Boolean(options?.force)
-
-  const { data: session, error: sessionErr } = await service
-    .from('sessions')
-    .select('*, students(*)')
-    .eq('id', sessionId)
-    .single()
-
-  if (sessionErr || !session) throw new Error('Session not found')
-  if (!session.audio_storage_path) throw new Error('No audio file for session')
-
-  if (session.status === 'processing' && !cachedAudio && !force) {
-    // Another request is already analysing with the uploaded audio
-    return
-  }
-
-  const { data: existing } = await service
-    .from('analyses')
-    .select('id')
-    .eq('session_id', sessionId)
-    .maybeSingle()
-
-  if (existing && !force) {
-    await service.from('sessions').update({ status: 'done' }).eq('id', sessionId)
-    return
-  }
-
-  if (existing && force) {
-    const { error: deleteErr } = await service
-      .from('analyses')
-      .delete()
-      .eq('session_id', sessionId)
-
-    if (deleteErr) throw new Error(`Failed to clear prior analysis: ${deleteErr.message}`)
-  }
-
-  const { data: job } = await service
-    .from('analysis_jobs')
-    .select('id')
-    .eq('session_id', sessionId)
-    .maybeSingle()
-
-  if (session.status === 'error' || force) {
-    await service.from('sessions').update({ status: 'pending' }).eq('id', sessionId)
-    if (job) {
-      await service.from('analysis_jobs').update({
-        status: 'queued',
-        error_message: null,
-        attempt_count: 0,
-      }).eq('id', job.id)
-    }
-  }
-
-  await service.from('sessions').update({ status: 'processing' }).eq('id', sessionId)
-
-  if (job) {
-    await service.from('analysis_jobs').update({
-      status: 'processing',
-      started_at: new Date().toISOString(),
-    }).eq('id', job.id)
-  }
+  let jobId: string | undefined
+  let stopHeartbeat: (() => void) | null = null
 
   try {
-    let audio: CachedAudio
+    const { data: session, error: sessionErr } = await service
+      .from('sessions')
+      .select('*, students(*)')
+      .eq('id', sessionId)
+      .single()
 
-    if (cachedAudio) {
-      audio = cachedAudio
-    } else {
-      audio = await downloadSessionAudio(
+    if (sessionErr || !session) throw new Error('Session not found')
+    if (!session.audio_storage_path) throw new Error('No audio file for session')
+
+    const job = await loadJob(service, sessionId)
+    jobId = job?.id
+    assertOpenAIKey()
+
+    const { data: existingRows, error: existingErr } = await service
+      .from('analyses')
+      .select('id')
+      .eq('session_id', sessionId)
+      .limit(1)
+
+    if (existingErr) throw new Error(existingErr.message)
+
+    if (existingRows && existingRows.length > 0 && !force) {
+      await service.from('sessions').update({ status: 'done' }).eq('id', sessionId)
+      if (jobId) {
+        await service.from('analysis_jobs').update({
+          status: 'done',
+          error_message: null,
+          completed_at: new Date().toISOString(),
+        }).eq('id', jobId)
+      }
+      return
+    }
+
+    if (job) {
+      const claim = await claimAnalysisJob(service, job, session.status, force)
+      if (claim === 'busy') return
+      if (claim === 'exhausted') {
+        throw new Error('Analysis timed out repeatedly. Please retry.')
+      }
+    }
+
+    await service.from('sessions').update({ status: 'processing' }).eq('id', sessionId)
+    if (jobId) stopHeartbeat = startAnalysisHeartbeat(service, jobId)
+
+    if (force) {
+      const { error: deleteErr } = await service
+        .from('analyses')
+        .delete()
+        .eq('session_id', sessionId)
+      if (deleteErr) throw new Error(`Failed to clear prior analysis: ${deleteErr.message}`)
+    }
+
+    const audio = cachedAudio
+      ?? await downloadSessionAudio(
         service,
         session.audio_storage_path,
         session.audio_mime_type
       )
-    }
 
-    await runAnalysis(service, sessionId, session, audio, job?.id)
+    await runAnalysis(service, sessionId, session, audio, jobId)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Analysis failed'
-
-    await service.from('sessions').update({ status: 'error' }).eq('id', sessionId)
-
-    if (job) {
-      await service.from('analysis_jobs').update({
-        status: 'error',
-        error_message: msg,
-        completed_at: new Date().toISOString(),
-      }).eq('id', job.id)
-    }
-
+    const recovered = await markFailed(service, sessionId, jobId, msg)
+    if (recovered) return
     throw err
+  } finally {
+    stopHeartbeat?.()
   }
 }

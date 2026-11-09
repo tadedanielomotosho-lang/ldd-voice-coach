@@ -60,8 +60,19 @@ export function getJoinedStudent(students: unknown): { name: string } | null {
 }
 
 export function formatProcessError(message: string): string {
+  if (/insufficient_quota|exceeded your current quota|billing/i.test(message)) {
+    return 'The OpenAI account is out of credit. Add billing at platform.openai.com, then retry this recording.'
+  }
+  if (/invalid_api_key|incorrect api key|api key/i.test(message) && /invalid|rejected|missing|not configured/i.test(message)) {
+    return 'The OpenAI API key was rejected. Update OPENAI_API_KEY and try again.'
+  }
+  if (/invalid file format|could not process|unsupported audio|audio file is invalid/i.test(message)) {
+    return 'This recording could not be read. Record again in the browser, or upload an MP3 or M4A file.'
+  }
   if (/connection error|connect timeout|fetch failed|network|econnreset|etimedout|und_err_connect_timeout|gateway timeout|504/i.test(message)) {
     return 'Could not reach the analysis service. Check your internet connection and try again.'
   }
-  return message
+  const trimmed = message.trim()
+  if (trimmed.length > 280) return `${trimmed.slice(0, 277)}…`
+  return trimmed
 }

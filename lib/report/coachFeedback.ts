@@ -99,11 +99,6 @@ function buildFallbackOverallJustification(analysis: Analysis): string | null {
     { name: 'hook', score: Number(analysis.hook_score), max: 15 },
     { name: 'purpose', score: Number(analysis.purpose_score), max: 12 },
     { name: 'key points', score: Number(analysis.key_points_score), max: 25 },
-    {
-      name: 'richness',
-      score: Number(analysis.richness_score ?? raw?.richness?.score ?? 0),
-      max: 20,
-    },
     { name: 'call to action', score: Number(analysis.cta_score), max: 13 },
     { name: 'clarity', score: Number(analysis.clarity_score), max: 15 },
   ]

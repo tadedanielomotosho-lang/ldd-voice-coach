@@ -10,7 +10,7 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: analysis, error } = await supabase
+  const { data: rows, error } = await supabase
     .from('analyses')
     .select(`
       *,
@@ -22,9 +22,15 @@ export async function GET(
     `)
     .eq('session_id', id)
     .eq('tutor_id', user.id)
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
 
-  if (error || !analysis) {
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  const analysis = rows?.[0]
+  if (!analysis) {
     return NextResponse.json({ error: 'Report not found' }, { status: 404 })
   }
 
