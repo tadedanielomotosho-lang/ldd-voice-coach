@@ -94,6 +94,39 @@ test('score-only JSON still becomes a report', () => {
   assert.ok(validated.data.full_redraft.length > 0)
 })
 
+test('a missing improvement list does not ask for more depth', () => {
+  const normalized = normalizeAnalysisPayload({
+    hook: { score: 12, feedback: 'The opening question earns attention.' },
+    purpose: { score: 9, feedback: 'The aim shows up early.' },
+    key_points: { score: 16, feedback: 'One point is easy to follow.' },
+    richness: { score: 4, feedback: 'Add more depth and richer examples.' },
+    cta: { score: 10, feedback: 'The close names a next step.' },
+    clarity: { score: 11, feedback: 'The sentences are easy to follow.' },
+    tone: { score: 14, feedback: 'The tone stays warm.' },
+    pace: { score: 8, feedback: 'Ease the pace on the example.' },
+    pauses: { score: 12, feedback: 'Pause before the close.' },
+    volume: { score: 13, feedback: 'Project the opening line.' },
+    duration: { score: 16, feedback: 'The length fits a 2-minute practice.' },
+    areas_for_improvement: [{ title: 'Content richness', detail: 'Add more depth and examples so the talk feels richer.' }],
+    ldd_coach_feedback: ['Expand the talk with more depth and richer examples.'],
+  }, { transcript })
+
+  const validated = LDDFrameworkSchema.safeParse(normalized)
+  assert.equal(validated.success, true)
+  if (!validated.success) return
+
+  const improvementText = validated.data.areas_for_improvement
+    .map((item) => `${item.title} ${item.detail}`)
+    .join(' ')
+  assert.doesNotMatch(improvementText, /depth|richness/i)
+  assert.equal(validated.data.areas_for_improvement[0]?.title, 'pace')
+  assert.equal(
+    validated.data.richness.feedback,
+    'The main point is hard to find. State it in one sentence near the start.'
+  )
+  assert.ok(validated.data.ldd_coach_feedback.every((item) => !/depth|richness/i.test(item)))
+})
+
 test('rejects a payload that has no scores', () => {
   const validated = LDDFrameworkSchema.safeParse(
     normalizeAnalysisPayload({ summary: 'Nice try' }, { transcript })

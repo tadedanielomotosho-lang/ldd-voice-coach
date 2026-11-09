@@ -39,7 +39,7 @@ const DIMENSIONS = [
   ['hook', 15, 'hook'],
   ['purpose', 12, 'purpose'],
   ['key_points', 25, 'key points'],
-  ['richness', 20, 'content richness'],
+  ['richness', 20, 'clear point'],
   ['cta', 13, 'call to action'],
   ['clarity', 15, 'clarity'],
   ['tone', 20, 'tone'],
@@ -210,6 +210,18 @@ function normalizeChanges(value: unknown): Array<{
 
 type ScoredDimension = { key: DimensionKey; label: string; score: number; feedback: string }
 
+const DEPTH_OR_LENGTH_COMMENT =
+  /\b(depth|richness|richer (detail|examples?|content|talk|development)|deeper (talk|explanation|content|point|message|development)|underdeveloped|thin content|add more (detail|examples|facts|substance)|longer (talk|explanation|presentation)|not enough content)\b/i
+
+function isDepthOrLengthComment(text: string): boolean {
+  return DEPTH_OR_LENGTH_COMMENT.test(text)
+}
+
+function keepOrFallback(text: string | null | undefined, fallback: string): string {
+  if (!text || isDepthOrLengthComment(text)) return fallback
+  return text
+}
+
 function ranked(dimensions: ScoredDimension[], direction: 'high' | 'low'): ScoredDimension | undefined {
   return [...dimensions].sort((a, b) =>
     direction === 'high' ? b.score - a.score : a.score - b.score
@@ -231,9 +243,14 @@ export function normalizeAnalysisPayload(input: unknown, context?: NormalizeCont
   >
 
   const strengths = normalizeFeedbackList(source.strengths)
-  const areas = normalizeFeedbackList(source.areas_for_improvement)
+  const areas = normalizeFeedbackList(source.areas_for_improvement).filter(
+    (item) => !isDepthOrLengthComment(`${item.title} ${item.detail}`)
+  )
   const strongest = ranked(dimensions, 'high')
-  const weakest = ranked(dimensions, 'low')
+  const weakest = ranked(
+    dimensions.filter((item) => item.key !== 'richness'),
+    'low'
+  )
 
   const filledStrengths = strengths.length > 0
     ? strengths
@@ -247,18 +264,41 @@ export function normalizeAnalysisPayload(input: unknown, context?: NormalizeCont
       ? [{ title: weakest.label, detail: weakest.feedback }]
       : []
 
-  const practiceGoal = asTrimmed(source.practice_goal)
-    ?? 'Record the presentation once more and apply the top improvement from your notes.'
+  if (byKey.richness && isDepthOrLengthComment(byKey.richness.feedback)) {
+    byKey.richness = {
+      ...byKey.richness,
+      feedback: byKey.richness.score >= 13
+        ? 'The main point is clear enough for a 2-minute talk.'
+        : 'The main point is hard to find. State it in one sentence near the start.',
+    }
+  }
+  if (byKey.duration && isDepthOrLengthComment(byKey.duration.feedback)) {
+    byKey.duration = {
+      ...byKey.duration,
+      feedback: 'Judge the length against a 2-minute practice, about 90 seconds to 2 minutes 30 seconds.',
+    }
+  }
 
-  const justification = asTrimmed(source.overall_justification)
-    ?? 'This grade reflects the balance of your content and your delivery. The notes below show what is working and what to practise next.'
+  const practiceGoal = keepOrFallback(
+    asTrimmed(source.practice_goal),
+    'Record the presentation once more and apply the top improvement from your notes.'
+  )
 
-  const summary = asTrimmed(source.executive_summary)
-    ?? (filledStrengths[0]
+  const justification = keepOrFallback(
+    asTrimmed(source.overall_justification),
+    'This grade reflects the balance of your content and your delivery. The notes below show what is working and what to practise next.'
+  )
+
+  const summary = keepOrFallback(
+    asTrimmed(source.executive_summary),
+    filledStrengths[0]
       ? `${filledStrengths[0].detail} Next, focus on ${filledAreas[0]?.title ?? 'the priorities below'}.`
-      : justification)
+      : justification
+  )
 
-  let bullets = normalizeBullets(source.ldd_coach_feedback)
+  let bullets = normalizeBullets(source.ldd_coach_feedback).filter(
+    (item) => !isDepthOrLengthComment(item)
+  )
   if (bullets.length === 0) {
     bullets = [filledStrengths[0]?.detail, filledAreas[0]?.detail, practiceGoal].filter(
       (item): item is string => Boolean(item)
@@ -279,12 +319,16 @@ export function normalizeAnalysisPayload(input: unknown, context?: NormalizeCont
     ...dimensionFields,
     strengths: filledStrengths,
     areas_for_improvement: filledAreas,
-    transcript_coaching: normalizeCoaching(source.transcript_coaching),
+    transcript_coaching: normalizeCoaching(source.transcript_coaching).filter(
+      (item) => !isDepthOrLengthComment(`${item.suggested_version} ${item.why_better}`)
+    ),
     overall_justification: justification,
     executive_summary: summary,
     practice_goal: practiceGoal,
     ldd_coach_feedback: bullets.slice(0, 8),
     full_redraft: redraft,
-    redraft_changes: normalizeChanges(source.redraft_changes),
+    redraft_changes: normalizeChanges(source.redraft_changes).filter(
+      (item) => !isDepthOrLengthComment(`${item.label} ${item.to} ${item.applied_suggestion}`)
+    ),
   }
 }

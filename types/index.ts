@@ -200,7 +200,7 @@ export const CONTENT_DIMENSIONS: ScoreDimension[] = [
   { key: 'hook_score',       fbKey: 'hook_feedback',        label: 'Hook',               maxScore: 15, category: 'content',  description: 'Story, question, quote, fact, statistic, or scenario' },
   { key: 'purpose_score',    fbKey: 'purpose_feedback',     label: 'Purpose statement',  maxScore: 12, category: 'content',  description: 'Objective, audience understanding, and purpose clarity' },
   { key: 'key_points_score', fbKey: 'key_points_feedback',  label: 'Key point structure', maxScore: 25, category: 'content',  description: 'Organization, transitions, and logical flow' },
-  { key: 'richness_score',   fbKey: 'richness_feedback',    label: 'Content richness',   maxScore: 20, category: 'content',  description: 'Depth, concrete detail, examples, and vivid substance' },
+  { key: 'richness_score',   fbKey: 'richness_feedback',    label: 'Clear point',        maxScore: 20, category: 'content',  description: 'One specific idea sized for a 2-minute talk' },
   { key: 'cta_score',        fbKey: 'cta_feedback',         label: 'Call to action',     maxScore: 13, category: 'content',  description: 'Action, thought, reflection, or next step' },
   { key: 'clarity_score',    fbKey: 'clarity_feedback',     label: 'Message clarity',    maxScore: 15, category: 'content',  description: 'Grammar, comprehension, and coherence' },
 ]
@@ -210,5 +210,5 @@ export const DELIVERY_DIMENSIONS: ScoreDimension[] = [
   { key: 'pace_score',     fbKey: 'pace_feedback',     label: 'Pace',               maxScore: 20, category: 'delivery', description: 'Too slow → ideal → too fast' },
   { key: 'pause_score',    fbKey: 'pause_feedback',    label: 'Pauses & breathing', maxScore: 20, category: 'delivery', description: 'Insufficient → healthy → excessive pauses' },
   { key: 'volume_score',   fbKey: 'volume_feedback',   label: 'Volume',             maxScore: 20, category: 'delivery', description: 'Low → inconsistent → strong projection' },
-  { key: 'duration_score', fbKey: 'duration_feedback', label: 'Speaking duration',  maxScore: 20, category: 'delivery', description: 'Too short / well-timed / too long for the message' },
+  { key: 'duration_score', fbKey: 'duration_feedback', label: 'Speaking duration',  maxScore: 20, category: 'delivery', description: 'Fit for a 2-minute practice, about 90 seconds to 2.5 minutes' },
 ]

@@ -614,7 +614,7 @@ async function analyseWithGPT4o(
             {
               role: 'system',
               content:
-                'You are an expert LDD communication coach. Follow the scoring rubric exactly. Always respond with valid JSON only. Use correct grammar. Be specific, balanced, actionable, prioritised, encouraging, consistent, and progress-oriented. Score content richness and speaking duration honestly.',
+                'You are an expert LDD communication coach. Follow the scoring rubric exactly. Always respond with valid JSON only. Use correct grammar. Be specific, balanced, actionable, prioritised, encouraging, consistent, and progress-oriented. This is a 2-minute presentation: do not suggest more depth, richness, examples, or a longer talk.',
             },
             {
               role: 'user',
@@ -659,7 +659,7 @@ function buildPrompt(
   const coachingCount = wordCount < 80 ? 2 : wordCount < 200 ? 3 : 4
 
   let timingBlock =
-    `SPEAKING TIME: unknown (word count ${wordCount}). Infer duration quality from transcript substance only; do not invent an exact clock time.`
+    `SPEAKING TIME: unknown (word count ${wordCount}). Assume the target is a 2-minute talk. Do not invent an exact clock time, and do not call the talk too thin or ask for more depth.`
   if (timing.durationSeconds && timing.durationSeconds > 0) {
     const minutes = Math.floor(timing.durationSeconds / 60)
     const seconds = timing.durationSeconds % 60
@@ -670,7 +670,7 @@ function buildPrompt(
       : 'measured from the audio file'
     timingBlock =
       `SPEAKING TIME: ${timing.durationSeconds}s (${clock}), ${source}. Word count: ${wordCount}. Approx rate: ${wpm} wpm.\n` +
-      `Use this measured/estimated duration when scoring the duration dimension. Short talks with thin development should not score highly on richness or duration.`
+      `The expected format is a 2-minute talk (about 90 seconds to 2 minutes 30 seconds). Score duration against that window. Do not treat a talk near 2 minutes as too short or too thin.`
   }
 
   let priorBlock =
@@ -691,7 +691,7 @@ function buildPrompt(
     priorBlock = `PRIOR ATTEMPT (use for progress-oriented coaching; cite score movement where relevant):
 - Topic: ${session?.presentation_topic || 'unknown'}
 - Overall: ${prior.overall_score}/100 | Content: ${prior.content_score}/100 | Delivery: ${prior.delivery_score}/100
-- Content dims: Hook ${prior.hook_score}/15, Purpose ${prior.purpose_score}/12, Key points ${prior.key_points_score}/25, Richness ${prior.richness_score ?? raw?.richness?.score ?? 0}/20, CTA ${prior.cta_score}/13, Clarity ${prior.clarity_score}/15
+- Content dims: Hook ${prior.hook_score}/15, Purpose ${prior.purpose_score}/12, Key points ${prior.key_points_score}/25, Clear point ${prior.richness_score ?? raw?.richness?.score ?? 0}/20, CTA ${prior.cta_score}/13, Clarity ${prior.clarity_score}/15
 - Delivery dims: Tone ${prior.tone_score}/20, Pace ${prior.pace_score}/20, Pauses ${prior.pause_score}/20, Volume ${prior.volume_score}/20, Duration ${prior.duration_score ?? raw?.duration?.score ?? 0}/20
 - Prior top strength: ${raw?.strengths?.[0]?.title || 'n/a'}
 - Prior top improvement focus: ${raw?.areas_for_improvement?.[0]?.title || 'n/a'}
@@ -703,6 +703,8 @@ Compare this attempt to the prior one. Name what improved, what slipped, and one
   return `You are an LDD communication coach. Analyse this presentation and return ONLY valid JSON.
 
 Write in clear, correct English with accurate grammar and spelling. Be motivating, never harsh. Use second person ("you").
+
+FORMAT: This practice presentation is 2 minutes. Do not suggest more depth, more richness, more examples, more facts, or a longer explanation. Do not call the talk thin, shallow, or underdeveloped. One clear point is enough.
 
 TRANSCRIPT:
 """
@@ -734,10 +736,11 @@ CONTENT (100)
   0–4 weak/missing · 5–8 generic · 9–12 clear · 13–15 memorable and topic-linked.
 - purpose (0–12): Audience knows the objective early.
   0–3 missing · 4–6 vague · 7–9 clear · 10–12 crisp.
-- key_points (0–25): Organised points and transitions (structure only).
+- key_points (0–25): Organised points and transitions for a 2-minute talk. One or two points is enough.
   0–8 unstructured · 9–14 some structure · 15–20 clear · 21–25 tight + smooth transitions.
-- richness (0–20): Substance and depth — concrete detail, examples, vivid imagery, facts. Thin/generic talks score low.
-  0–6 thin/generic · 7–12 surface detail · 13–16 solid substance · 17–20 rich memorable depth.
+- richness (0–20): Whether the single main idea is specific enough for a 2-minute talk. Not a depth score. One clear point scores in the top band.
+  0–6 no main point · 7–12 the point is hard to find · 13–16 the point is clear · 17–20 one specific point that fits 2 minutes.
+  Do not suggest adding depth or richness, and do not list this dimension as an improvement.
 - cta (0–13): Ends with action, thought, reflection, or next step.
   0–3 none · 4–7 soft · 8–10 clear · 11–13 specific and motivating.
 - clarity (0–15): Grammar, word choice, comprehension, coherence.
@@ -745,19 +748,20 @@ CONTENT (100)
 
 DELIVERY (100) — use wording cues AND speaking-time data.
 - tone (0–20), pace (0–20), pauses (0–20), volume (0–20)
-- duration (0–20): Appropriateness of speaking time for developing the presentation.
-  0–6 severely underdeveloped or empty · 7–11 short/thin or long/padded · 12–15 adequate · 16–20 well-timed (about 1–3 minutes when content fills the time).
+- duration (0–20): Fit for this 2-minute practice. About 90 seconds to 2 minutes 30 seconds is the target. Do not ask a talk in that window for more content.
+  0–6 empty or far past 4 minutes · 7–11 under 1 minute or over about 3.5 minutes · 12–15 close to the window · 16–20 about 90 seconds to 2.5 minutes.
 
 ════════════════════════════════════════
 OUTPUT FIELD RULES
 ════════════════════════════════════════
-- Each dimension feedback: 3–5 sentences with strength, gap, and next action. No numeric scores in feedback text.
-- For richness: cite specific details that earned or lacked depth.
-- For duration: name speaking-time quality and what to add or trim.
-- overall_justification: 2–4 sentences under the overall score; mention richness and/or duration when they materially affect the grade.
-- executive_summary, practice_goal, ldd_coach_feedback: same coaching standards as before.
-- full_redraft: Complete rewrite that implements ALL material suggestions (transcript_coaching, areas_for_improvement, richer detail, stronger hook/CTA, [pause] cues). Wrap every NEW or SUBSTANTIALLY CHANGED phrase in [[double square brackets]]. Leave unchanged wording unmarked. [pause] stays as [pause].
-- redraft_changes: 4–8 items { label, from, to, applied_suggestion } cataloguing those highlights (to without brackets).
+- Each dimension feedback: 2–3 sentences with strength, gap, and next action. No numeric scores in feedback text. Never suggest more depth, richness, examples, or a longer talk.
+- For richness: say whether the main point is clear for a 2-minute talk. Do not ask for more detail.
+- For duration: if the talk is near 2 minutes, say the length fits. Do not suggest adding material.
+- overall_justification: 2–4 sentences under the overall score. Do not cite depth, richness, or "not enough content" as a reason the grade is lower.
+- executive_summary, practice_goal, ldd_coach_feedback: coach hook, purpose, structure, close, clarity, and delivery. Do not mention depth or richness.
+- areas_for_improvement: never use depth, richness, or "add more detail".
+- full_redraft: Complete rewrite of about 2 minutes that applies hook, purpose, close, grammar, and [pause] cues. Do not add extra examples or deeper explanation. Wrap every NEW or SUBSTANTIALLY CHANGED phrase in [[double square brackets]]. Leave unchanged wording unmarked. [pause] stays as [pause].
+- redraft_changes: 4–8 items { label, from, to, applied_suggestion } cataloguing those highlights (to without brackets). Do not catalogue a richness or depth upgrade.
 
 JSON schema:
 {

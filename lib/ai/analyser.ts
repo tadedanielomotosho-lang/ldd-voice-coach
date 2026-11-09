@@ -11,7 +11,7 @@ import {
 } from './prompt'
 
 const SYSTEM_PROMPT =
-  'You are an expert LDD communication coach. Follow the scoring rubric exactly. Always respond with valid JSON only. Use correct grammar. Be specific, balanced, actionable, prioritised, encouraging, consistent, and progress-oriented. Score content richness and speaking duration honestly. Keep each feedback field to 2 sentences so the JSON finishes.'
+  'You are an expert LDD communication coach. Follow the scoring rubric exactly. Always respond with valid JSON only. Use correct grammar. Be specific, balanced, actionable, prioritised, encouraging, consistent, and progress-oriented. This is a 2-minute presentation: do not suggest more depth, richness, examples, or a longer talk. Keep each feedback field to 2 sentences so the JSON finishes.'
 
 function getOpenAI() {
   return new OpenAI({
@@ -109,9 +109,9 @@ function readReply(reply: Reply, transcript: string): LDDFrameworkResult {
 }
 
 function compactPrompt(transcript: string, topic: string): string {
-  return `Score this presentation. Return JSON with only these keys, each { "score": number, "feedback": "1 or 2 sentences" }.
+  return `Score this 2-minute presentation. Return JSON with only these keys, each { "score": number, "feedback": "1 or 2 sentences" }.
 hook 0-15, purpose 0-12, key_points 0-25, richness 0-20, cta 0-13, clarity 0-15, tone 0-20, pace 0-20, pauses 0-20, volume 0-20, duration 0-20.
-Use the whole range honestly. Do not mention the numeric score inside feedback.
+A talk near 2 minutes with one clear point should score highly on richness and duration. Do not ask for more depth, richness, examples, or a longer talk. Do not mention the numeric score inside feedback.
 
 TOPIC: ${topic}
 

@@ -336,7 +336,7 @@ export function buildReportPdfBytes(data: ReportPdfData): Uint8Array {
   // ── Delivery coaching with scores ─────────────────────────
   sectionTitle('Delivery coaching')
   writeWrapped(
-    'Pace, pauses and breathing, volume, and speaking duration — with where to slow down, when to breathe, how loud to project, and whether the talk was long enough to develop the message.',
+    'Pace, pauses and breathing, volume, and speaking duration — with where to slow down, when to breathe, how loud to project, and whether the talk fits a 2-minute practice.',
     8,
     { color: MUTED }
   )
@@ -409,7 +409,7 @@ export function buildReportPdfBytes(data: ReportPdfData): Uint8Array {
   if (data.fullRedraft) {
     sectionTitle('Full redrafted script')
     writeWrapped(
-      'Polished practise script with every major coaching suggestion applied (richer detail, stronger hook/CTA, grammar fixes, clearer structure, and pause cues).',
+      'Polished practise script of about 2 minutes, with the coaching suggestions applied (stronger hook and close, grammar fixes, clearer structure, and pause cues).',
       8,
       { color: MUTED }
     )
